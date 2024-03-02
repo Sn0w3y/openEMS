@@ -2,7 +2,10 @@ package io.openems.edge.io.opendtu.inverter;
 
 import static io.openems.common.utils.JsonUtils.getAsJsonObject;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Map;
 
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Activate;
@@ -24,10 +27,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
-import io.openems.common.exceptions.OpenemsError.OpenemsNamedException;
 import io.openems.common.utils.JsonUtils;
 import io.openems.edge.bridge.http.api.BridgeHttp;
 import io.openems.edge.bridge.http.api.BridgeHttpFactory;
+import io.openems.edge.bridge.http.api.HttpMethod;
 import io.openems.edge.common.component.AbstractOpenemsComponent;
 import io.openems.edge.common.component.OpenemsComponent;
 import io.openems.edge.common.event.EdgeEventConstants;
@@ -91,40 +94,32 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		this.baseUrl = "http://" + config.ip();
 		this.httpBridge = this.httpBridgeFactory.get();
 
-		// Add Basic Authentication header
-		String auth = config.username() + ":" + config.password();
-		String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
-		this.httpBridge.post("Authorization", "Basic " + encodedAuth);
-
 		String inverterStatus = "/api/livedata/status?inv=" + config.serialNumber();
 		if (this.isEnabled()) {
 			this.httpBridge.subscribeJsonEveryCycle(this.baseUrl + inverterStatus, this::processHttpResult);
 		}
 
 		if (!this.isInitialPowerLimitSet) {
-			Integer initialPowerLimit = config.initialPowerLimit();
-			// Prepare the data payload
-			String payload = String.format("{\"serial\":\"%s\", \"limit_type\":1, \"limit_value\":%d}",
-					this.serialNumber, initialPowerLimit);
+			String auth = config.username() + ":" + config.password();
+			String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+			Map<String, String> properties = Map.of("Authorization", "Basic " + encodedAuth, "Content-Type",
+					"application/x-www-form-urlencoded");
+			String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":1, \"limit_value\":%d}",
+					this.serialNumber, config.initialPowerLimit());
+			String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
 
-			this.logInfo(log, "data=" + payload);
+			BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(this.baseUrl + "/api/limit/config", HttpMethod.POST,
+					BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
 
-			// Set the initial power limit
-			this.httpBridge.post(this.baseUrl + "/api/limit/config", payload).thenAccept(response -> {
-				try {
-					// Handle successful response
-					JsonObject responseJson = JsonUtils.parseToJsonObject(response);
-					String messageType = JsonUtils.getAsString(responseJson, "type");
-					if ("success".equals(messageType)) {
-						this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(messageType);
-						this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(false);
-					} else {
-						this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(true);
-					}
-				} catch (OpenemsNamedException e) {
-					this.logError(this.log, "Error parsing response JSON: " + e.getMessage());
-				}
+			this.httpBridge.request(endpoint).thenAccept(response -> {
+				// Debug log for successful response
+				this.logInfo(log, "API Response Success: " + response);
+			}).exceptionally(ex -> {
+				// Debug log for errors
+				this.logError(log, "API Request Failed: " + ex.getMessage());
+				return null;
 			});
+
 			this.isInitialPowerLimitSet = true;
 		}
 	}
