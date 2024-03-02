@@ -171,31 +171,26 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		int scaledPower = Math.round(power);
 		int scaledreactivepower = Math.round(reactivepower);
 
+		this._setVoltageL1(0);
+		this._setCurrentL1(0);
+		this._setVoltageL2(0);
+		this._setCurrentL2(0);
+		this._setVoltageL3(0);
+		this._setCurrentL3(0);
+
 		if (this.phase != null) {
 			switch (this.phase) {
 			case L1:
 				this._setActivePowerL1(scaledPower);
 				this._setVoltageL1(scaledVoltage);
 				this._setCurrentL1(scaledCurrent);
-				this._setVoltageL2(0);
-				this._setCurrentL2(0);
-				this._setVoltageL3(0);
-				this._setCurrentL3(0);
 				break;
 			case L2:
-				this._setVoltageL1(0);
-				this._setCurrentL1(0);
 				this._setActivePowerL2(scaledPower);
 				this._setVoltageL2(scaledVoltage);
 				this._setCurrentL2(scaledCurrent);
-				this._setVoltageL3(0);
-				this._setCurrentL3(0);
 				break;
 			case L3:
-				this._setVoltageL1(0);
-				this._setCurrentL1(0);
-				this._setVoltageL2(0);
-				this._setCurrentL2(0);
 				this._setActivePowerL3(scaledPower);
 				this._setVoltageL3(scaledVoltage);
 				this._setCurrentL3(scaledCurrent);
