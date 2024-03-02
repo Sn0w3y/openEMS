@@ -1,10 +1,6 @@
 package io.openems.edge.io.opendtu.inverter;
 
-import static io.openems.common.utils.JsonUtils.getAsBoolean;
-import static io.openems.common.utils.JsonUtils.getAsFloat;
-import static io.openems.common.utils.JsonUtils.getAsJsonArray;
 import static io.openems.common.utils.JsonUtils.getAsJsonObject;
-import static java.lang.Math.round;
 
 import java.util.Base64;
 
@@ -35,7 +31,6 @@ import io.openems.edge.bridge.http.api.BridgeHttpFactory;
 import io.openems.edge.common.component.AbstractOpenemsComponent;
 import io.openems.edge.common.component.OpenemsComponent;
 import io.openems.edge.common.event.EdgeEventConstants;
-import io.openems.edge.io.opendtu.common.OpendtuApi;
 import io.openems.edge.meter.api.ElectricityMeter;
 import io.openems.edge.meter.api.MeterType;
 import io.openems.edge.meter.api.SinglePhase;
@@ -71,12 +66,10 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 
 	private final Logger log = LoggerFactory.getLogger(OpendtuImpl.class);
 
-	private OpendtuApi opendtuApi = null;
 	private MeterType meterType = null;
 	private SinglePhase phase = null;
 	private String serialNumber;
-	Integer limitValue = null;
-	private boolean isInitialPowerLimitSet = false;
+	private Boolean isInitialPowerLimitSet = false;
 
 	public OpendtuImpl() {
 		super(//
@@ -95,8 +88,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		this.meterType = config.type();
 		this.phase = config.phase();
 		this.serialNumber = config.serialNumber();
-
-		// How to set user / password ??
 		this.baseUrl = "http://" + config.ip();
 		this.httpBridge = this.httpBridgeFactory.get();
 
@@ -106,18 +97,36 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		this.httpBridge.post("Authorization", "Basic " + encodedAuth);
 
 		String inverterStatus = "/api/livedata/status?inv=" + config.serialNumber();
-
 		if (this.isEnabled()) {
 			this.httpBridge.subscribeJsonEveryCycle(this.baseUrl + inverterStatus, this::processHttpResult);
 		}
 
-		// Set the initial power limit from the configuration, only if not set before
-		/*
-		 * ToDo if (!this.isInitialPowerLimitSet) { Integer initialPowerLimit =
-		 * config.initialPowerLimit(); if (initialPowerLimit != null) {
-		 * this.setInitialPowerLimit(initialPowerLimit, initialPowerLimit);
-		 * this.isInitialPowerLimitSet = true; } }
-		 */
+		if (!this.isInitialPowerLimitSet) {
+			Integer initialPowerLimit = config.initialPowerLimit();
+			// Prepare the data payload
+			String payload = String.format("{\"serial\":\"%s\", \"limit_type\":1, \"limit_value\":%d}",
+					this.serialNumber, initialPowerLimit);
+
+			this.logInfo(log, "data=" + payload);
+
+			// Set the initial power limit
+			this.httpBridge.post(this.baseUrl + "/api/limit/config", payload).thenAccept(response -> {
+				try {
+					// Handle successful response
+					JsonObject responseJson = JsonUtils.parseToJsonObject(response);
+					String messageType = JsonUtils.getAsString(responseJson, "type");
+					if ("success".equals(messageType)) {
+						this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(messageType);
+						this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(false);
+					} else {
+						this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(true);
+					}
+				} catch (OpenemsNamedException e) {
+					this.logError(this.log, "Error parsing response JSON: " + e.getMessage());
+				}
+			});
+			this.isInitialPowerLimitSet = true;
+		}
 	}
 
 	private void processHttpResult(JsonElement result, Throwable error) {
@@ -142,8 +151,8 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 
 				JsonObject powerObj = JsonUtils.getAsJsonObject(ac0Data, "Power");
 				power = JsonUtils.getAsFloat(powerObj, "v");
-				
-		        JsonObject reactivePowerObj = getAsJsonObject(ac0Data, "ReactivePower");
+
+				JsonObject reactivePowerObj = getAsJsonObject(ac0Data, "ReactivePower");
 				reactivepower = JsonUtils.getAsFloat(reactivePowerObj, "v");
 
 				JsonObject voltageObj = JsonUtils.getAsJsonObject(ac0Data, "Voltage");
@@ -237,48 +246,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		switch (event.getTopic()) {
 		case EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE:
 			// this.eventBeforeProcessImage(); // ToDo
-			// this.updateLimitStatusChannel(); // ToDo
 			break;
-		}
-	}
-
-	private void setInitialPowerLimit(Integer limitValue, Integer lastSetPowerLimit) {
-
-		try {
-			JsonObject response = this.opendtuApi.setPowerLimit(this.serialNumber, 1, limitValue);
-			String messageType = JsonUtils.getAsString(response, "type");
-
-			this.logInfo(log, "Called PowerLimit");
-
-			if (!"success".equals(messageType)) {
-				this.logWarn(log, "Failed to set power limit on activation. Response: " + response.toString());
-			} else {
-				lastSetPowerLimit = limitValue; // Update the last set value only on successful set
-			}
-		} catch (OpenemsNamedException e) {
-			this.logError(log, "Error setting power limit on activation: " + e.getMessage());
-		}
-	}
-
-	/**
-	 * Updates the LimitStatus channel using the value from the API.
-	 */
-	private void updateLimitStatusChannel() {
-		try {
-			JsonObject limitStatusResponse = this.opendtuApi.getLimitStatus();
-
-			// Extract the limit_set_status for the inverter with the given serial number
-			if (limitStatusResponse.has(this.serialNumber)) {
-				JsonObject inverterData = limitStatusResponse.getAsJsonObject(this.serialNumber);
-				String limitSetStatus = JsonUtils.getAsString(inverterData, "limit_set_status");
-
-				// Update the LimitStatus channel
-				this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitSetStatus);
-			} else {
-				this.logWarn(log, "Serial number [" + this.serialNumber + "] not found in limit status response.");
-			}
-		} catch (OpenemsNamedException e) {
-			this.logError(this.log, "Error updating limit status channel: " + e.getMessage());
 		}
 	}
 

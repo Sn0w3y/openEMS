@@ -7,9 +7,7 @@ import io.openems.common.channel.Level;
 import io.openems.common.channel.PersistencePriority;
 import io.openems.common.channel.Unit;
 import io.openems.common.types.OpenemsType;
-
 import io.openems.edge.common.channel.Doc;
-
 import io.openems.edge.common.channel.StateChannel;
 import io.openems.edge.common.channel.WriteChannel;
 import io.openems.edge.common.channel.value.Value;
@@ -23,7 +21,7 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 	 * Channel for setting the Power Limit.
 	 */
 	public default WriteChannel<Integer> setPowerLimit() {
-		return this.channel(ChannelId.SET_POWER_LIMIT);
+		return this.channel(ChannelId.POWER_LIMIT);
 	}
 
 	public static enum ChannelId implements io.openems.edge.common.channel.ChannelId {
@@ -55,9 +53,9 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 		LIMIT_STATUS(Doc.of(OpenemsType.STRING)//
 				.text("Limit Status")), //
 
-		SET_POWER_LIMIT(Doc.of(OpenemsType.INTEGER)//
-				.text("Set Power Limit Status")//
-				.accessMode(AccessMode.READ_WRITE));
+		POWER_LIMIT(Doc.of(OpenemsType.INTEGER)//
+				.accessMode(AccessMode.READ_WRITE)),
+		POWER_LIMIT_FAULT(Doc.of(Level.FAULT)); //
 
 		private final Doc doc;
 
