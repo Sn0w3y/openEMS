@@ -17,20 +17,15 @@ import io.openems.edge.common.component.OpenemsComponent;
 import io.openems.edge.meter.api.ElectricityMeter;
 import io.openems.edge.meter.api.SinglePhaseMeter;
 
-public interface Opendtu
-		extends SinglePhaseMeter, ElectricityMeter, OpenemsComponent, EventHandler {
+public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComponent, EventHandler {
 
-	
-
-    /**
-     * Channel for setting the Power Limit.
-     */
+	/**
+	 * Channel for setting the Power Limit.
+	 */
 	public default WriteChannel<Integer> setPowerLimit() {
-	    return this.channel(ChannelId.SET_POWER_LIMIT);
+		return this.channel(ChannelId.SET_POWER_LIMIT);
 	}
 
-    
-	
 	public static enum ChannelId implements io.openems.edge.common.channel.ChannelId {
 		/**
 		 * Slave Communication Failed Fault.
@@ -54,16 +49,16 @@ public interface Opendtu
 		MAX_ACTUAL_POWER(Doc.of(OpenemsType.INTEGER)//
 				.unit(Unit.WATT) //
 				.persistencePriority(PersistencePriority.HIGH)), //
-	
-	    WARN_INVERTER_NOT_REACHABLE(Doc.of(Level.INFO) //
-				.text("One or more Inverter is not reachable")),
-		SLAVE_COMMUNICATION_FAILED(Doc.of(Level.FAULT)),
-        LIMIT_STATUS(Doc.of(OpenemsType.STRING).text("Limit Status")),
-        SET_POWER_LIMIT(Doc.of(OpenemsType.INTEGER).text("Set Power Limit Status").accessMode(AccessMode.READ_WRITE));
-        
 
-		
-		
+		SLAVE_COMMUNICATION_FAILED(Doc.of(Level.FAULT)), //
+
+		LIMIT_STATUS(Doc.of(OpenemsType.STRING)//
+				.text("Limit Status")), //
+
+		SET_POWER_LIMIT(Doc.of(OpenemsType.INTEGER)//
+				.text("Set Power Limit Status")//
+				.accessMode(AccessMode.READ_WRITE));
+
 		private final Doc doc;
 
 		private ChannelId(Doc doc) {
@@ -75,7 +70,6 @@ public interface Opendtu
 			return this.doc;
 		}
 	}
-
 
 	/**
 	 * Gets the Channel for {@link ChannelId#SLAVE_COMMUNICATION_FAILED}.
