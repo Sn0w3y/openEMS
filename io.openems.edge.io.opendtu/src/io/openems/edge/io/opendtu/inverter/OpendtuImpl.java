@@ -112,11 +112,10 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 					BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
 
 			this.httpBridge.request(endpoint).thenAccept(response -> {
-				// Debug log for successful response
-				this.logInfo(log, "API Response Success: " + response);
+				this.channel(Opendtu.ChannelId.POWER_LIMIT).setNextValue(config.initialPowerLimit());
+				this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(false);
 			}).exceptionally(ex -> {
-				// Debug log for errors
-				this.logError(log, "API Request Failed: " + ex.getMessage());
+				this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(true);
 				return null;
 			});
 
@@ -224,10 +223,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 	public String debugLog() {
 		var b = new StringBuilder();
 		b.append(this.getActivePowerChannel().value().asString());
-		b.append("|");
-		b.append(this.getVoltage().asString());
-		b.append("|");
-		b.append(this.getCurrent().asString());
 		return b.toString();
 	}
 
@@ -240,7 +235,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 
 		switch (event.getTopic()) {
 		case EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE:
-			// this.eventBeforeProcessImage(); // ToDo
+			this.updateLimitStatusChannel();
 			break;
 		}
 	}
@@ -258,6 +253,22 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		} else {
 			this.calculateActualEnergy.update(0);
 		}
+	}
+
+	private void updateLimitStatusChannel() {
+		String url = this.baseUrl + "/api/limit/status";
+		this.httpBridge.getJson(url).thenAccept(responseJson -> {
+			if (responseJson.isJsonObject() && responseJson.getAsJsonObject().has(this.serialNumber)) {
+				JsonObject inverterData = responseJson.getAsJsonObject().getAsJsonObject(this.serialNumber);
+				String limitSetStatus = inverterData.get("limit_set_status").getAsString();
+				this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitSetStatus);
+			} else {
+				this.logWarn(log, "Serial number [" + this.serialNumber + "] not found in limit status response.");
+			}
+		}).exceptionally(ex -> {
+			this.logError(log, "Error updating limit status channel: " + ex.getMessage());
+			return null;
+		});
 	}
 
 	@Override
