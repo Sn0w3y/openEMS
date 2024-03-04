@@ -43,6 +43,7 @@ import io.openems.edge.meter.api.SinglePhase;
 import io.openems.edge.timedata.api.Timedata;
 import io.openems.edge.timedata.api.TimedataProvider;
 import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
+import io.openems.edge.pvinverter.api.ManagedSymmetricPvInverter;
 
 @Designate(ocd = Config.class, factory = true)
 @Component(//
@@ -53,7 +54,7 @@ import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
 		EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE, //
 })
 public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
-		EventHandler, TimedataProvider {
+		EventHandler, TimedataProvider, ManagedSymmetricPvInverter {
 
 	@Reference(policy = ReferencePolicy.DYNAMIC, //
 			policyOption = ReferencePolicyOption.GREEDY, //
@@ -84,7 +85,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		super(//
 				OpenemsComponent.ChannelId.values(), //
 				ElectricityMeter.ChannelId.values(), //
-				Opendtu.ChannelId.values() //
+				ManagedSymmetricPvInverter.ChannelId.values(), Opendtu.ChannelId.values() //
 		);
 
 		// SinglePhaseMeter.calculateSinglePhaseFromActivePower(this);
