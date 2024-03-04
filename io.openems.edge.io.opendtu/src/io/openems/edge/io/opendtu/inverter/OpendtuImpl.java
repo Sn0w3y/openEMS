@@ -4,7 +4,10 @@ import static io.openems.common.utils.JsonUtils.getAsJsonObject;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.osgi.service.component.ComponentContext;
@@ -37,7 +40,6 @@ import io.openems.edge.common.event.EdgeEventConstants;
 import io.openems.edge.meter.api.ElectricityMeter;
 import io.openems.edge.meter.api.MeterType;
 import io.openems.edge.meter.api.SinglePhase;
-import io.openems.edge.meter.api.SinglePhaseMeter;
 import io.openems.edge.timedata.api.Timedata;
 import io.openems.edge.timedata.api.TimedataProvider;
 import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
@@ -50,8 +52,8 @@ import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
 @EventTopics({ //
 		EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE, //
 })
-public class OpendtuImpl extends AbstractOpenemsComponent
-		implements Opendtu, SinglePhaseMeter, ElectricityMeter, OpenemsComponent, EventHandler, TimedataProvider {
+public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
+		EventHandler, TimedataProvider {
 
 	@Reference(policy = ReferencePolicy.DYNAMIC, //
 			policyOption = ReferencePolicyOption.GREEDY, //
@@ -61,6 +63,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 	private volatile BridgeHttpFactory httpBridgeFactory;
 	private BridgeHttp httpBridge;
 	private String baseUrl;
+	private String encodedAuth;
 
 	private volatile Timedata timedata = null;
 
@@ -71,8 +74,11 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 
 	private MeterType meterType = null;
 	private SinglePhase phase = null;
-	private String serialNumber;
+	private int numInverters = 0;
 	private Boolean isInitialPowerLimitSet = false;
+
+	private List<InverterData> validInverters = new ArrayList<>();
+	private Map<String, InverterData> inverterDataMap = new HashMap<>();
 
 	public OpendtuImpl() {
 		super(//
@@ -81,44 +87,68 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 				Opendtu.ChannelId.values() //
 		);
 
-		SinglePhaseMeter.calculateSinglePhaseFromActivePower(this);
+		// SinglePhaseMeter.calculateSinglePhaseFromActivePower(this);
 	}
 
 	@Activate
 	private void activate(ComponentContext context, Config config) {
 		super.activate(context, config.id(), config.alias(), config.enabled());
 
+		this.validInverters = InverterData.collectInverterData(config); // Adds Inverter to Array with serial and phase
+																		// information
+		this.numInverters = validInverters.size();
+
 		this.meterType = config.type();
-		this.phase = config.phase();
-		this.serialNumber = config.serialNumber();
+
 		this.baseUrl = "http://" + config.ip();
 		this.httpBridge = this.httpBridgeFactory.get();
 
-		String inverterStatus = "/api/livedata/status?inv=" + config.serialNumber();
-		if (this.isEnabled()) {
-			this.httpBridge.subscribeJsonEveryCycle(this.baseUrl + inverterStatus, this::processHttpResult);
+		String auth = config.username() + ":" + config.password();
+		this.encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
+
+		for (InverterData inverter : validInverters) {
+			inverterDataMap.put(inverter.getSerialNumber(), inverter);
+			String inverterStatusUrl = "/api/livedata/status?inv=" + inverter.getSerialNumber();
+			if (this.isEnabled()) {
+				this.httpBridge.subscribeJsonEveryCycle(this.baseUrl + inverterStatusUrl, this::processHttpResult);
+			}
 		}
 
+		// Set initial limit to each inverter
+		// Initial limit is set relative (in percent) to handle different types of
+		// inverters
+		//
+		// To make use of the setLimits-method from other controllers we have to use
+		// absolute values (in watts)
 		if (!this.isInitialPowerLimitSet) {
-			String auth = config.username() + ":" + config.password();
-			String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
-			Map<String, String> properties = Map.of("Authorization", "Basic " + encodedAuth, "Content-Type",
+
+			Map<String, String> properties = Map.of("Authorization", "Basic " + this.encodedAuth, "Content-Type",
 					"application/x-www-form-urlencoded");
-			String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":1, \"limit_value\":%d}",
-					this.serialNumber, config.initialPowerLimit());
-			String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
+			for (InverterData inverter : validInverters) {
+				String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":1, \"limit_value\":%d}",
+						inverter.serialNumber, config.initialPowerLimit());
+				String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
+				BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(this.baseUrl + "/api/limit/config",
+						HttpMethod.POST, BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT,
+						formattedPayload, properties);
 
-			BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(this.baseUrl + "/api/limit/config", HttpMethod.POST,
-					BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
-
-			this.httpBridge.request(endpoint).thenAccept(response -> {
-				this.channel(Opendtu.ChannelId.POWER_LIMIT).setNextValue(config.initialPowerLimit());
-				this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(false);
-			}).exceptionally(ex -> {
-				this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(true);
-				return null;
-			});
-
+				this.httpBridge.request(endpoint).thenAccept(response -> {
+					/*
+					 * Initial limits are set relatively in percent ToDo: Read the absolute values
+					 * and save them to channels
+					 * this.channel(Opendtu.ChannelId.POWER_LIMIT_L1).setNextValue(config.
+					 * initialPowerLimit());
+					 * this.channel(Opendtu.ChannelId.POWER_LIMIT_L2).setNextValue(config.
+					 * initialPowerLimit());
+					 * this.channel(Opendtu.ChannelId.POWER_LIMIT_L3).setNextValue(config.
+					 * initialPowerLimit());
+					 */
+					this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(false);
+				}).exceptionally(ex -> {
+					this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(true);
+					return null;
+				});
+			}
 			this.isInitialPowerLimitSet = true;
 		}
 	}
@@ -131,15 +161,28 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		Float voltage = null;
 		Float current = null;
 		Integer frequency = null;
+		Float totalPower = null; // Power over all inverters connected to the DTU
+		// Float totalProductionEnergy = null; // Lifetime production energy over all inverters
+		String serialNumber = null;
+		String phase = null;
+		Float powerLimitPerPhaseAbsolute = null;
+		Float powerLimitPerPhaseRelative = null;
 
 		if (error != null) {
 			this.logDebug(this.log, error.getMessage());
 		} else {
 			try {
 				JsonObject response = JsonUtils.getAsJsonObject(result);
-
 				JsonArray invertersArray = JsonUtils.getAsJsonArray(response, "inverters");
+
+				var totalArray = getAsJsonObject(response, "total");
 				JsonObject firstInverter = invertersArray.get(0).getAsJsonObject();
+
+				serialNumber = firstInverter.get("serial").getAsString();
+
+				powerLimitPerPhaseAbsolute = firstInverter.get("limit_absolute").getAsFloat();
+				powerLimitPerPhaseRelative = firstInverter.get("limit_relative").getAsFloat();
+
 				JsonObject acData = JsonUtils.getAsJsonObject(firstInverter, "AC");
 				JsonObject ac0Data = JsonUtils.getAsJsonObject(acData, "0");
 
@@ -157,6 +200,8 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 
 				JsonObject frequencyObj = JsonUtils.getAsJsonObject(ac0Data, "Frequency");
 				frequency = JsonUtils.getAsInt(frequencyObj, "v");
+
+				totalPower = JsonUtils.getAsFloat(getAsJsonObject(totalArray, "Power"), "v"); // W
 			}
 
 			catch (Exception e) {
@@ -165,44 +210,72 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 			}
 		}
 
+		/*
+		 * We don´t need scaling for every value
+		 * 
+		 * ToDo: clean & refactor
+		 */
 		int scaledVoltage = Math.round(voltage * 1000);
 		int scaledCurrent = Math.round(current * 1000);
 		int scaledFrequency = Math.round(frequency * 1000);
 		int scaledPower = Math.round(power);
+		int scaledTotalPower = Math.round(totalPower);
 		int scaledreactivepower = Math.round(reactivepower);
+		int powerLimitPerPhaseAbsoluteScaled = Math.round(powerLimitPerPhaseAbsolute);
+		int powerLimitPerPhaseRelativeScaled = Math.round(powerLimitPerPhaseRelative);
 
-		this._setVoltageL1(0);
-		this._setCurrentL1(0);
-		this._setVoltageL2(0);
-		this._setCurrentL2(0);
-		this._setVoltageL3(0);
-		this._setCurrentL3(0);
+		if (serialNumber != null) {
+			InverterData inverterData = inverterDataMap.get(serialNumber);
+			if (inverterData != null) {
+				if (power != null) {
+					inverterData.setPower(scaledPower);
+				}
+				if (current != null) {
+					inverterData.setCurrent(scaledCurrent);
+				}
+				if (voltage != null) {
+					inverterData.setVoltage(scaledVoltage);
+				}
+				if (frequency != null) {
+					inverterData.setFrequency(scaledFrequency);
+				}
+				if (powerLimitPerPhaseAbsolute != null) {
+					inverterData.setCurrentPowerLimitAbsolute(powerLimitPerPhaseAbsoluteScaled);
+				}
+				if (powerLimitPerPhaseRelative != null) {
+					inverterData.setCurrentPowerLimitRelative(powerLimitPerPhaseRelativeScaled);
+				}
 
-		if (this.phase != null) {
-			switch (this.phase) {
-			case L1:
+				phase = inverterData.getPhase();
+			}
+		}
+
+		// Feed Channels
+		if (phase != null) {
+			switch (phase) {
+			case "L1":
 				this._setActivePowerL1(scaledPower);
 				this._setVoltageL1(scaledVoltage);
 				this._setCurrentL1(scaledCurrent);
+				this._setReactivePowerL1(scaledreactivepower);
 				break;
-			case L2:
+			case "L2":
 				this._setActivePowerL2(scaledPower);
 				this._setVoltageL2(scaledVoltage);
 				this._setCurrentL2(scaledCurrent);
+				this._setReactivePowerL2(scaledreactivepower);
 				break;
-			case L3:
+			case "L3":
 				this._setActivePowerL3(scaledPower);
 				this._setVoltageL3(scaledVoltage);
 				this._setCurrentL3(scaledCurrent);
+				this._setReactivePowerL3(scaledreactivepower);
 				break;
 			}
 		}
 
-		this._setReactivePower(scaledreactivepower);
-		this._setCurrent(scaledCurrent);
-		this._setVoltage(scaledVoltage);
-		this._setFrequency(scaledFrequency);
-		this._setActivePower(scaledPower);
+		this._setFrequency(scaledFrequency); // We assume frequency to be equal on all phases/inverters
+		this._setActivePower(scaledTotalPower); // ActivePower over the whole cluster
 		this._setSlaveCommunicationFailed(false);
 
 	}
@@ -223,7 +296,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 
 	@Override
 	public void handleEvent(Event event) {
-		this.calculateEnergy();
+		// this.calculateEnergy();
 		if (!this.isEnabled()) {
 			return;
 		}
@@ -232,7 +305,11 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		case EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE:
 			this.updateLimitStatusChannel();
 			break;
+		case EdgeEventConstants.TOPIC_CYCLE_AFTER_PROCESS_IMAGE:
+			this.calculateEnergy();
+			break;
 		}
+
 	}
 
 	/**
@@ -250,18 +327,78 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 		}
 	}
 
+	public void setActivePowerLimit(int powerLimit) {
+
+		// first, we use a fix division:
+		int individualPowerLimit = Math.round(powerLimit / this.numInverters); // devide the total limit
+
+		inverterDataMap.forEach((serialNumber, inverterData) -> {
+			// check if it´s necessary to set a new limit
+			if (inverterData.getlimitSetStatus().equals("Pending")) {
+				log.info("Still Pending to set limit for serial [{}] ", serialNumber);
+				return;
+			}
+			if ((Math.abs(inverterData.getCurrentPowerLimitAbsolute() - individualPowerLimit)) < 5) {
+				log.info("No changes in PowerLimit for serial [{}] ", serialNumber);
+				return;
+			}
+			try {
+				String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":0, \"limit_value\":%d}",
+						serialNumber, (int) individualPowerLimit);
+
+				String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
+				Map<String, String> properties = Map.of("Authorization", "Basic " + this.encodedAuth, "Content-Type",
+						"application/x-www-form-urlencoded");
+
+				BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(baseUrl + "/api/limit/config", HttpMethod.POST,
+						BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload,
+						properties);
+
+				httpBridge.request(endpoint).thenAccept(response -> {
+					log.info("Limit {} successfully set for inverter [{}]  ", individualPowerLimit, serialNumber);
+				}).exceptionally(ex -> {
+					log.error("Error setting limit for inverter [{}]: {}", serialNumber, ex.getMessage());
+					return null;
+				});
+			} catch (Exception e) {
+				log.error("Error setting up request for inverter [{}]: {}", serialNumber, e.getMessage());
+			}
+		});
+		return;
+	}
+
 	private void updateLimitStatusChannel() {
+
 		String url = this.baseUrl + "/api/limit/status";
 		this.httpBridge.getJson(url).thenAccept(responseJson -> {
-			if (responseJson.isJsonObject() && responseJson.getAsJsonObject().has(this.serialNumber)) {
-				JsonObject inverterData = responseJson.getAsJsonObject().getAsJsonObject(this.serialNumber);
-				String limitSetStatus = inverterData.get("limit_set_status").getAsString();
-				this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitSetStatus);
-			} else {
-				this.logWarn(log, "Serial number [" + this.serialNumber + "] not found in limit status response.");
+			if (responseJson.isJsonObject()) {
+				JsonObject responseObj = responseJson.getAsJsonObject();
+				for (Map.Entry<String, JsonElement> entry : responseObj.entrySet()) {
+					String serialNumber = entry.getKey(); // Serial is key for inverter map
+					JsonObject limitInfo = entry.getValue().getAsJsonObject();
+
+					int limitRelative = limitInfo.get("limit_relative").getAsInt();
+					/*
+					 * // maxPower holds the maximum possible power - not the limit!!! so we don´t
+					 * need to set it here
+					 */
+					int maxPower = limitInfo.get("max_power").getAsInt();
+					String limitSetStatus = limitInfo.get("limit_set_status").getAsString();
+
+					// Find inverter and update values
+					InverterData inverterData = inverterDataMap.get(serialNumber);
+					if (inverterData != null) {
+						inverterData.setMaxPower(maxPower);
+						inverterData.setCurrentPowerLimitRelative(limitRelative); // percent
+						inverterData.setLimitSetStatus(limitSetStatus); // "Ok", "Pending"
+						this.logDebug(this.log, "Status Limit : " + limitSetStatus + " Serial: " + serialNumber);
+					} else {
+						this.logWarn(log, "No data found for inverter with serial [" + serialNumber + "] .");
+					}
+				}
 			}
 		}).exceptionally(ex -> {
-			this.logError(log, "Error updating limit status channel: " + ex.getMessage());
+			this.logError(log, "Error Updating status channel: " + ex.getMessage());
 			return null;
 		});
 	}
@@ -280,5 +417,4 @@ public class OpendtuImpl extends AbstractOpenemsComponent
 	public SinglePhase getPhase() {
 		return this.phase;
 	}
-
 }
