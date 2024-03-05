@@ -18,7 +18,12 @@ import io.openems.edge.meter.api.SinglePhaseMeter;
 public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComponent, EventHandler {
 
 	/**
-	 * Channel for setting the Power Limit.
+	 * Provides a channel for setting the Power Limit in percent.
+	 *
+	 * @return A {@link WriteChannel}<{@link Integer}> for the power limit, allowing
+	 *         for the power limit to be set relative to the inverter's maximum
+	 *         capacity. This limit is expressed as a percentage of the maximum
+	 *         power output.
 	 */
 	public default WriteChannel<Integer> setPowerLimit() {
 		return this.channel(ChannelId.RELATIVE_LIMIT);
@@ -39,14 +44,14 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 		 * Maximum Ever Actual Power.
 		 *
 		 * <ul>
-		 * <li>Interface: Ess DC Charger
+		 * <li>Interface: Opendtu
 		 * <li>Type: Integer
 		 * <li>Unit: W
 		 * <li>Range: positive or '0'
 		 * <li>Implementation Note: value is automatically derived from ACTUAL_POWER
 		 * </ul>
 		 */
-		MAX_ACTUAL_POWER(Doc.of(OpenemsType.INTEGER)//
+		MAX_ACTUAL_POWER(Doc.of(OpenemsType.INTEGER) //
 				.unit(Unit.WATT) //
 				.persistencePriority(PersistencePriority.HIGH)), //
 
@@ -56,22 +61,11 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 		 * <ul>
 		 * <li>Interface: Opendtu
 		 * <li>Type: String
-		 * <li>Expected values: "Ok", "Pending", "Failure"
+		 * <li>Description: Reflects the outcome of the last power limit setting operation; expected values are "Ok", "Pending", "Failure".
 		 * </ul>
 		 */
-		LIMIT_STATUS(Doc.of(OpenemsType.STRING)//
+		LIMIT_STATUS(Doc.of(OpenemsType.STRING) //
 				.text("Limit Status")), //
-		/**
-		 * The maximum Power of an Inverter.
-		 *
-		 * <ul>
-		 * <li>Interface: Opendtu
-		 * <li>Type: Integer
-		 * </ul>
-		 */
-		MAX_POWER_INVERTER(Doc.of(OpenemsType.INTEGER)//
-				.unit(Unit.WATT) //
-				.accessMode(AccessMode.READ_ONLY)),
 		/**
 		 * The relative Limit Power set to an Inverter.
 		 *
@@ -79,11 +73,13 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 		 * <li>Interface: Opendtu
 		 * <li>Type: Integer
 		 * <li>Unit: %
+		 * <li>Description: Allows setting a relative power limit for the inverter in
+		 * percentage of its maximum capacity.
 		 * </ul>
 		 */
-		RELATIVE_LIMIT(Doc.of(OpenemsType.INTEGER)//
+		RELATIVE_LIMIT(Doc.of(OpenemsType.INTEGER) //
 				.unit(Unit.PERCENT) //
-				.accessMode(AccessMode.READ_WRITE)),
+				.accessMode(AccessMode.READ_WRITE)), //
 		/**
 		 * The absolute Limit Power set to an Inverter.
 		 *
@@ -91,11 +87,12 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 		 * <li>Interface: Opendtu
 		 * <li>Type: Integer
 		 * <li>Unit: W
+		 * <li>Description: Allows setting an absolute power limit for the inverter in watts.
 		 * </ul>
 		 */
-		ABSOLUTE_LIMIT(Doc.of(OpenemsType.INTEGER)//
+		ABSOLUTE_LIMIT(Doc.of(OpenemsType.INTEGER) //
 				.unit(Unit.WATT) //
-				.accessMode(AccessMode.READ_WRITE)),
+				.accessMode(AccessMode.READ_WRITE)), //
 
 		/**
 		 * Power Limit Setting Failed Fault.

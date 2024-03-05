@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class InverterData {
-	String serialNumber;
+	private String serialNumber;
 	private String phase;
 
 	private int power;
@@ -22,16 +22,26 @@ public class InverterData {
 		this.phase = phase;
 	}
 
+	/**
+	 * Retrieves the serial number of the inverter.
+	 * 
+	 * @return The serial number as a {@code String}.
+	 */
 	public String getSerialNumber() {
-		return serialNumber;
+		return this.serialNumber;
 	}
 
+	/**
+	 * Sets the serial number for the inverter.
+	 * 
+	 * @param serialNumber The new serial number as a {@code String}.
+	 */
 	public void setSerialNumber(String serialNumber) {
 		this.serialNumber = serialNumber;
 	}
 
 	public String getPhase() {
-		return phase;
+		return this.phase;
 	}
 
 	public void setPhase(String phase) {
@@ -39,16 +49,15 @@ public class InverterData {
 	}
 
 	public int getPower() {
-		return power;
+		return this.power;
 	}
 
 	public void setPower(int power) {
 		this.power = power;
 	}
 
-	// max. possible power from inverter
 	public int getMaxPower() {
-		return maxPower;
+		return this.maxPower;
 	}
 
 	public void setMaxPower(int power) {
@@ -56,7 +65,7 @@ public class InverterData {
 	}
 
 	public int getCurrent() {
-		return current;
+		return this.current;
 	}
 
 	public void setCurrent(int current) {
@@ -64,7 +73,7 @@ public class InverterData {
 	}
 
 	public int getVoltage() {
-		return voltage;
+		return this.voltage;
 	}
 
 	public void setVoltage(int voltage) {
@@ -72,34 +81,63 @@ public class InverterData {
 	}
 
 	public int getFrequency() {
-		return frequency;
+		return this.frequency;
 	}
 
 	public void setFrequency(int frequency) {
 		this.frequency = frequency;
 	}
 
-	// current status of limit setting
+	/**
+	 * Retrieves the current status of the limit setting.
+	 * 
+	 * <p>
+	 * This method returns a {@code String} that represents the current status of
+	 * the limit setting for an inverter. The status indicates whether the limit has
+	 * been successfully set, is pending, or has encountered an error.
+	 * 
+	 * @return A {@code String} representing the current status of the limit
+	 *         setting.
+	 */
 	public String getlimitSetStatus() {
-		return limitSetStatus;
+		return this.limitSetStatus;
 	}
 
 	public void setLimitSetStatus(String limitSetStatus) {
 		this.limitSetStatus = limitSetStatus;
 	}
 
-	// current power limit in percent
+	/**
+	 * Retrieves the current power limit set for the inverter in percent.
+	 * 
+	 * <p>
+	 * Returns the power limit currently set for the inverter as a percentage of its
+	 * maximum capacity.
+	 * 
+	 * @return An {@code int} value representing the current power limit set for the
+	 *         inverter, in percent.
+	 */
 	public int getCurrentPowerLimitRelative() {
-		return currentPowerLimitRelative;
+		return this.currentPowerLimitRelative;
 	}
 
 	public void setCurrentPowerLimitRelative(int currentPowerLimitRelative) {
 		this.currentPowerLimitRelative = currentPowerLimitRelative;
 	}
 
-	// current power limit in watts
+	/**
+	 * Retrieves the current power limit set for the inverter in watts.
+	 * 
+	 * <p>
+	 * Returns the absolute power limit currently imposed on the inverter, measured
+	 * in watts. The absolute limit specifies a fixed maximum power output,
+	 * providing a direct control over the inverter's energy production capacity.
+	 * 
+	 * @return An {@code int} value representing the current absolute power limit
+	 *         set for the inverter, in watts.
+	 */
 	public int getCurrentPowerLimitAbsolute() {
-		return currentPowerLimitAbsolute;
+		return this.currentPowerLimitAbsolute;
 	}
 
 	public void setCurrentPowerLimitAbsolute(int currentPowerLimitAbsolute) {
