@@ -33,6 +33,8 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 		 * <li>Type: State
 		 * </ul>
 		 */
+		SLAVE_COMMUNICATION_FAILED(Doc.of(Level.FAULT)), //
+
 		/**
 		 * Maximum Ever Actual Power.
 		 *
@@ -48,20 +50,60 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 				.unit(Unit.WATT) //
 				.persistencePriority(PersistencePriority.HIGH)), //
 
-		SLAVE_COMMUNICATION_FAILED(Doc.of(Level.FAULT)), //
-
+		/**
+		 * The Limit Status as String of the Power Limit Response.
+		 *
+		 * <ul>
+		 * <li>Interface: Opendtu
+		 * <li>Type: String
+		 * <li>Expected values: "Ok", "Pending", "Failure"
+		 * </ul>
+		 */
 		LIMIT_STATUS(Doc.of(OpenemsType.STRING)//
 				.text("Limit Status")), //
-		
+		/**
+		 * The maximum Power of an Inverter.
+		 *
+		 * <ul>
+		 * <li>Interface: Opendtu
+		 * <li>Type: Integer
+		 * </ul>
+		 */
 		MAX_POWER_INVERTER(Doc.of(OpenemsType.INTEGER)//
 				.accessMode(AccessMode.READ_ONLY)),
-		
+		/**
+		 * The relative Limit Power set to an Inverter.
+		 *
+		 * <ul>
+		 * <li>Interface: Opendtu
+		 * <li>Type: Integer
+		 * <li>Unit: %
+		 * </ul>
+		 */
 		RELATIVE_LIMIT(Doc.of(OpenemsType.INTEGER)//
+				.unit(Unit.PERCENT) //
+				.accessMode(AccessMode.READ_WRITE)),
+		/**
+		 * The absolute Limit Power set to an Inverter.
+		 *
+		 * <ul>
+		 * <li>Interface: Opendtu
+		 * <li>Type: Integer
+		 * <li>Unit: W
+		 * </ul>
+		 */
+		ABSOLUTE_LIMIT(Doc.of(OpenemsType.INTEGER)//
+				.unit(Unit.WATT) //
 				.accessMode(AccessMode.READ_WRITE)),
 
-		ABSOLUTE_LIMIT(Doc.of(OpenemsType.INTEGER)//
-				.accessMode(AccessMode.READ_WRITE)),
-		
+		/**
+		 * Power Limit Setting Failed Fault.
+		 *
+		 * <ul>
+		 * <li>Interface: Opendtu
+		 * <li>Type: State
+		 * </ul>
+		 */
 		POWER_LIMIT_FAULT(Doc.of(Level.FAULT)); //
 
 		private final Doc doc;
