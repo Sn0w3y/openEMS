@@ -51,11 +51,14 @@ import io.openems.edge.timedata.api.TimedataProvider;
 import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
 
 @Designate(ocd = Config.class, factory = true)
+
 @Component(//
 		immediate = true, //
-		configurationPolicy = ConfigurationPolicy.REQUIRE, property = { //
+		configurationPolicy = ConfigurationPolicy.REQUIRE, //
+		property = { //
 				"type=PRODUCTION" //
 		})
+
 @EventTopics({ //
 		EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE, //
 })
@@ -64,45 +67,41 @@ import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
  * ToDo:
  * 
  * - We still need to implement a Channel to set the overall Power Limit right?
- * - Please have a close look to the changes i made
- * - We still need to check the Code :D 
+ * - Please have a close look to the changes i made - We still need to check the Code :D 
  * - We still need to drink more Bavarian Beer ;)
  */
+
 public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
 		EventHandler, TimedataProvider, ManagedSymmetricPvInverter {
 
-	@Reference(policy = ReferencePolicy.DYNAMIC, //
-			policyOption = ReferencePolicyOption.GREEDY, //
-			cardinality = ReferenceCardinality.OPTIONAL //
-	)
+	private final Logger log = LoggerFactory.getLogger(OpendtuImpl.class);
 
-	private volatile BridgeHttpFactory httpBridgeFactory;
+	@Reference()
+	private BridgeHttpFactory httpBridgeFactory;
 	private BridgeHttp httpBridge;
-	private String baseUrl;
-	private String encodedAuth;
 
-	@Reference(policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
+	
+	//This Reference MF is needed.
+	@Reference(policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
 	private volatile Timedata timedata;
 
 	private final CalculateEnergyFromPower calculateActualEnergy = new CalculateEnergyFromPower(this,
 			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY);
-
 	private final CalculateEnergyFromPower calculateActualEnergyL1 = new CalculateEnergyFromPower(this,
 			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L1);
-
 	private final CalculateEnergyFromPower calculateActualEnergyL2 = new CalculateEnergyFromPower(this,
 			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L2);
-
 	private final CalculateEnergyFromPower calculateActualEnergyL3 = new CalculateEnergyFromPower(this,
 			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L3);
 
-	private final Logger log = LoggerFactory.getLogger(OpendtuImpl.class);
+	private String baseUrl;
+	private String encodedAuth;
+	private int delay;
 
+	private Boolean isInitialPowerLimitSet = false;
 	private MeterType meterType = null;
 	private SinglePhase phase = null;
 	private int numInverters = 0;
-	private Boolean isInitialPowerLimitSet = false;
-	private int delay;
 
 	private List<InverterData> validInverters = new ArrayList<>();
 	private Map<String, InverterData> inverterDataMap = new HashMap<>();
