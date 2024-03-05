@@ -163,7 +163,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		Float current = null;
 		Integer frequency = null;
 		Float totalPower = null; // Power over all inverters connected to the DTU
-		// Float totalProductionEnergy = null; // Lifetime production energy over all inverters
 		String serialNumber = null;
 		String phase = null;
 		Float powerLimitPerPhaseAbsolute = null;
