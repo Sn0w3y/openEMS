@@ -434,18 +434,28 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					String inverterSerialNumber = entry.getKey(); // Using the serial number to identify the inverter
 					JsonObject inverterLimitInfo = entry.getValue().getAsJsonObject();
 
-					int currentLimitPercentage = inverterLimitInfo.get("limit_relative").getAsInt();
-					int maximumPowerCapability = inverterLimitInfo.get("max_power").getAsInt();
+					int currentLimitRelative = inverterLimitInfo.get("limit_relative").getAsInt();
+					int currentLimitAbsolute = inverterLimitInfo.get("max_power").getAsInt();
 					String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
-
+/*
+ * 
+ *  <div class="col-sm-4" v-if="currentLimitList.max_power > 0">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="inputCurrentLimitAbsolute"
+                        aria-describedby="currentLimitTypeAbsolute" v-model="currentLimitAbsolute" disabled />
+                    <span class="input-group-text" id="currentLimitTypeAbsolute">W</span>
+                </div>
+ * 
+ * 			As we see there max_power IS indeed the Absolute Limit even if it does not get updated.
+ */
 					// Retrieve inverter data based on its serial number and update its power limits
 					// and status
 					InverterData inverter = inverterDataMap.get(inverterSerialNumber);
 					if (inverter != null) {
 
 						this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitAdjustmentStatus);
-						this.channel(Opendtu.ChannelId.MAX_POWER_INVERTER).setNextValue(maximumPowerCapability);
-						this.channel(Opendtu.ChannelId.RELATIVE_LIMIT).setNextValue(currentLimitPercentage);
+						this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(currentLimitAbsolute);
+						this.channel(Opendtu.ChannelId.RELATIVE_LIMIT).setNextValue(currentLimitRelative);
 
 						this.logDebug(this.log,
 								"Limit Status: " + limitAdjustmentStatus + " for Inverter: " + inverterSerialNumber);
