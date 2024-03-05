@@ -65,8 +65,8 @@ import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
  * 
  * - We still need to implement a Channel to set the overall Power Limit right?
  * - Please have a close look to the changes i made
- * - We still need to check the Code :D - We still need to drink more Bavarian
- * Beer ;)
+ * - We still need to check the Code :D 
+ * - We still need to drink more Bavarian Beer ;)
  */
 public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
 		EventHandler, TimedataProvider, ManagedSymmetricPvInverter {
