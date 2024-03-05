@@ -63,19 +63,10 @@ import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
 /*
  * ToDo:
  * 
- * - Set overall Power-Limit. I´ve made different Limits for each phase which is
- * useless
- * 
- * - Tests on a cloudy day which will cause a lot of deviation while producing
- * power
- * 
- * - Add modbus slave functionality
- * 
- * - Maybe make inverter-limits dynamic. For example: WR1 600W, WR2 800W.
- * Overall limit 1000W. So individual limits can be set according to output
- * power or better: To a combination of actual production power AND max. output
- * power. In an east/west configuration each inverter can deliver max power
- * 
+ * - We still need to implement a Channel to set the overall Power Limit right?
+ * - Please have a close look to the changes i made
+ * - We still need to check the Code :D - We still need to drink more Bavarian
+ * Beer ;)
  */
 public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
 		EventHandler, TimedataProvider, ManagedSymmetricPvInverter {
@@ -124,6 +115,8 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				ManagedSymmetricPvInverter.ChannelId.values(), //
 				Opendtu.ChannelId.values() //
 		);
+		ElectricityMeter.calculateAverageVoltageFromPhases(this);
+		ElectricityMeter.calculateSumCurrentFromPhases(this);
 	}
 
 	@Activate
@@ -460,6 +453,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					int currentLimitRelative = inverterLimitInfo.get("limit_relative").getAsInt();
 					int currentLimitAbsolute = inverterLimitInfo.get("max_power").getAsInt();
 					String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
+
 					/*
 					 * 
 					 * <div class="col-sm-4" v-if="currentLimitList.max_power > 0"> <div
@@ -468,9 +462,10 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					 * v-model="currentLimitAbsolute" disabled /> <span class="input-group-text"
 					 * id="currentLimitTypeAbsolute">W</span> </div>
 					 * 
-					 * As we see there max_power IS indeed the Absolute Limit even if it does not
+					 * As we see there max_power is indeed the Absolute Limit even if it does not
 					 * get updated.
 					 */
+
 					// Retrieve inverter data based on its serial number and update its power limit
 					// and status
 					InverterData inverter = this.inverterDataMap.get(inverterSerialNumber);
