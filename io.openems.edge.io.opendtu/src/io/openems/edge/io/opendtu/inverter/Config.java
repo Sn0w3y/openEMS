@@ -39,11 +39,11 @@ import io.openems.edge.meter.api.MeterType;
 	@AttributeDefinition(name = "IP-Address", description = "The IP address of the openDTU.")
 	String ip();
     
-    @AttributeDefinition(name = "Single inverter Initial Power Limit", description = "The initial power limit per inverter setting in percent. Default 100%")
-    int relativePowerLimit() default 100;
+    @AttributeDefinition(name = "Single inverter Initial Power Limit", description = "The initial power limit per inverter setting in percent. Needs to be configured. Otherwise it is set to 100%")
+    int relativePowerLimit() default -1;
     
-    @AttributeDefinition(name = "Single inverter Initial Power Limit", description = "The initial power limit per inverter setting in Watt")
-    int absolutePowerLimit();
+    @AttributeDefinition(name = "Single inverter Initial Power Limit", description = "The initial power limit per inverter setting in Watt. Set to -1 if not used.")
+    int absolutePowerLimit() default -1;
     
     @AttributeDefinition(name = "Single inverter Absolute Power Limit Delay", description = "This defines in which Time (in Seconds) the PowerLimit shall be set.")
     int delay() default 30;

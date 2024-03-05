@@ -139,43 +139,43 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 			}
 		}
 
-		// Set initial limit to each inverter
-		// Initial limit is set relative (in percent) to handle different types of
-		// inverters
-		//
-		// To make use of the setLimits-method from other controllers we have to use
-		// absolute values (in watts)
+
 		if (!this.isInitialPowerLimitSet) {
+		    // Default properties for HTTP requests
+		    Map<String, String> properties = Map.of("Authorization", "Basic " + this.encodedAuth, "Content-Type", "application/x-www-form-urlencoded");
 
-			Map<String, String> properties = Map.of("Authorization", "Basic " + this.encodedAuth, "Content-Type",
-					"application/x-www-form-urlencoded");
-			for (InverterData inverter : validInverters) {
-				String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":1, \"limit_value\":%d}",
-						inverter.serialNumber, config.relativePowerLimit());
-				String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
-				BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(this.baseUrl + "/api/limit/config",
-						HttpMethod.POST, BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT,
-						formattedPayload, properties);
+		    for (InverterData inverter : validInverters) {
+		        int limitValue;
+		        int limitType;
+		        
+		        // Determine if setting absolute or relative limit
+		        if (config.absolutePowerLimit() != -1) {
+		            limitValue = config.absolutePowerLimit();
+		            limitType = 0; // Absolute limit type
+		        } else if (config.relativePowerLimit() != -1) {
+		            limitValue = config.relativePowerLimit();
+		            limitType = 100; // Relative limit type
+		        } else {
+		            continue; // Skip if neither limit is set
+		        }
 
-				this.httpBridge.request(endpoint).thenAccept(response -> {
-					/*
-					 * Initial limits are set relatively in percent ToDo: Read the absolute values
-					 * and save them to channels
-					 * this.channel(Opendtu.ChannelId.POWER_LIMIT_L1).setNextValue(config.
-					 * initialPowerLimit());
-					 * this.channel(Opendtu.ChannelId.POWER_LIMIT_L2).setNextValue(config.
-					 * initialPowerLimit());
-					 * this.channel(Opendtu.ChannelId.POWER_LIMIT_L3).setNextValue(config.
-					 * initialPowerLimit());
-					 */
-					this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(false);
-				}).exceptionally(ex -> {
-					this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(true);
-					return null;
-				});
-			}
-			this.isInitialPowerLimitSet = true;
+		        String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":%d, \"limit_value\":%d}",
+		                inverter.serialNumber, limitType, limitValue);
+		        String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
+		        BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(this.baseUrl + "/api/limit/config",
+		                HttpMethod.POST, BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT,
+		                formattedPayload, properties);
+
+		        this.httpBridge.request(endpoint).thenAccept(response -> {
+		            this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(false);
+		        }).exceptionally(ex -> {
+		            this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(true);
+		            return null;
+		        });
+		    }
+		    this.isInitialPowerLimitSet = true;
 		}
+
 	}
 
 	private void processHttpResult(JsonElement result, Throwable error) {
