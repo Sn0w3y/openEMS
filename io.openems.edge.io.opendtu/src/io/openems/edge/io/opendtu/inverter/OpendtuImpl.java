@@ -30,6 +30,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import io.openems.common.exceptions.OpenemsError.OpenemsNamedException;
 import io.openems.common.utils.JsonUtils;
 import io.openems.edge.bridge.http.api.BridgeHttp;
 import io.openems.edge.bridge.http.api.BridgeHttpFactory;
@@ -373,7 +374,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	}
 
-	public void setActivePowerLimit(int powerLimit) {
+	public void setActivePowerLimit(int powerLimit) throws OpenemsNamedException {
 
 		// first, we use a fix division:
 		int individualPowerLimit = Math.round(powerLimit / this.numInverters); // devide the total limit
@@ -388,27 +389,20 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				log.info("No changes in PowerLimit for serial [{}] ", serialNumber);
 				return;
 			}
-			try {
-				String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":0, \"limit_value\":%d}",
-						serialNumber, (int) individualPowerLimit);
+			String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":0, \"limit_value\":%d}",
+					serialNumber, (int) individualPowerLimit);
 
-				String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
-				Map<String, String> properties = Map.of("Authorization", "Basic " + this.encodedAuth, "Content-Type",
-						"application/x-www-form-urlencoded");
+			String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
+			Map<String, String> properties = Map.of("Authorization", "Basic " + this.encodedAuth, "Content-Type",
+					"application/x-www-form-urlencoded");
 
-				BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(baseUrl + "/api/limit/config", HttpMethod.POST,
-						BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload,
-						properties);
+			BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(baseUrl + "/api/limit/config", HttpMethod.POST,
+					BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload,
+					properties);
 
-				httpBridge.request(endpoint).thenAccept(response -> {
-					log.info("Limit {} successfully set for inverter [{}]  ", individualPowerLimit, serialNumber);
-				}).exceptionally(ex -> {
-					log.error("Error setting limit for inverter [{}]: {}", serialNumber, ex.getMessage());
-					return null;
-				});
-			} catch (Exception e) {
-				log.error("Error setting up request for inverter [{}]: {}", serialNumber, e.getMessage());
-			}
+			httpBridge.request(endpoint).thenAccept(response -> {
+				log.info("Limit {} successfully set for inverter [{}]  ", individualPowerLimit, serialNumber);
+			});
 		});
 		return;
 	}
