@@ -110,7 +110,8 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		super(//
 				OpenemsComponent.ChannelId.values(), //
 				ElectricityMeter.ChannelId.values(), //
-				ManagedSymmetricPvInverter.ChannelId.values(), Opendtu.ChannelId.values() //
+				ManagedSymmetricPvInverter.ChannelId.values(), //
+				Opendtu.ChannelId.values() //
 		);
 	}
 
@@ -143,6 +144,14 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					"application/x-www-form-urlencoded");
 
 			for (InverterData inverter : validInverters) {
+				// Skip setting the power limit if both absolute and relative power limits are
+				// -1
+				if (config.absolutePowerLimit() == -1 && config.relativePowerLimit() == -1) {
+					log.info("Skipping power limit setting for inverter [{}] as both limits are unspecified",
+							inverter.serialNumber);
+					continue;
+				}
+
 				int limitValue;
 				int limitType;
 
@@ -171,10 +180,12 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					// Update the respective channel based on the limit type
 					if (limitType == 0) { // Absolute limit type
 						this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(limitValue);
-						this.channel(Opendtu.ChannelId.RELATIVE_LIMIT).setNextValue(null); // Optionally clear the other
+						// Optionally clear the relative limit channel if setting an absolute limit
+						this.channel(Opendtu.ChannelId.RELATIVE_LIMIT).setNextValue(null);
 					} else { // Relative limit type
 						this.channel(Opendtu.ChannelId.RELATIVE_LIMIT).setNextValue(limitValue);
-						this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(null); // Optionally clear the other
+						// Optionally clear the absolute limit channel if setting a relative limit
+						this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(null);
 					}
 				}).exceptionally(ex -> {
 					// Log error or update status channel upon failure
@@ -327,7 +338,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	@Override
 	public void handleEvent(Event event) {
-		this.calculateEnergy(); // <-- Belongs here and tested working
+		this.calculateEnergy();
 		if (!this.isEnabled()) {
 			return;
 		}
@@ -437,18 +448,18 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					int currentLimitRelative = inverterLimitInfo.get("limit_relative").getAsInt();
 					int currentLimitAbsolute = inverterLimitInfo.get("max_power").getAsInt();
 					String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
-/*
- * 
- *  <div class="col-sm-4" v-if="currentLimitList.max_power > 0">
-                <div class="input-group">
-                    <input type="text" class="form-control" id="inputCurrentLimitAbsolute"
-                        aria-describedby="currentLimitTypeAbsolute" v-model="currentLimitAbsolute" disabled />
-                    <span class="input-group-text" id="currentLimitTypeAbsolute">W</span>
-                </div>
- * 
- * 			As we see there max_power IS indeed the Absolute Limit even if it does not get updated.
- */
-					// Retrieve inverter data based on its serial number and update its power limits
+					/*
+					 * 
+					 * <div class="col-sm-4" v-if="currentLimitList.max_power > 0"> <div
+					 * class="input-group"> <input type="text" class="form-control"
+					 * id="inputCurrentLimitAbsolute" aria-describedby="currentLimitTypeAbsolute"
+					 * v-model="currentLimitAbsolute" disabled /> <span class="input-group-text"
+					 * id="currentLimitTypeAbsolute">W</span> </div>
+					 * 
+					 * As we see there max_power IS indeed the Absolute Limit even if it does not
+					 * get updated.
+					 */
+					// Retrieve inverter data based on its serial number and update its power limit
 					// and status
 					InverterData inverter = inverterDataMap.get(inverterSerialNumber);
 					if (inverter != null) {
