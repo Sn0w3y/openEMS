@@ -437,6 +437,9 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 						inverterData.setMaxPower(maxPower);
 						inverterData.setCurrentPowerLimitRelative(limitRelative); // percent
 						inverterData.setLimitSetStatus(limitSetStatus); // "Ok", "Pending"
+						
+						this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitSetStatus); // <- Added Limit Status to Channel
+						
 						this.logDebug(this.log, "Status Limit : " + limitSetStatus + " Serial: " + serialNumber);
 					} else {
 						this.logWarn(log, "No data found for inverter with serial [" + serialNumber + "] .");
