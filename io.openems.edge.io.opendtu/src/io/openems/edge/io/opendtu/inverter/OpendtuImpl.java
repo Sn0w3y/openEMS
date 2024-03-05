@@ -57,12 +57,13 @@ import io.openems.edge.pvinverter.api.ManagedSymmetricPvInverter;
 })
 
 /*
- * ToDo:
- * 		- Set overall Power-Limit. I´ve made different Limits for each phase which is useless 
- * 		- Tests on a cloudy day which will cause a lot of deviation while producing power 
- * 		- Add modbus slave functionality 
- * 		- Maybe make inverter-limits dynamic. For example: WR1 600W, WR2 800W. Overall limit 1000W. So individual limits can be set according to output power or better:
- * 			To a combination of actual production power AND max. output power. In an east/west configuration each inverter can deliver max power 
+ * ToDo: - Set overall Power-Limit. I´ve made different Limits for each phase
+ * which is useless - Tests on a cloudy day which will cause a lot of deviation
+ * while producing power - Add modbus slave functionality - Maybe make
+ * inverter-limits dynamic. For example: WR1 600W, WR2 800W. Overall limit
+ * 1000W. So individual limits can be set according to output power or better:
+ * To a combination of actual production power AND max. output power. In an
+ * east/west configuration each inverter can deliver max power
  * 
  */
 public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
@@ -397,8 +398,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					"application/x-www-form-urlencoded");
 
 			BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(baseUrl + "/api/limit/config", HttpMethod.POST,
-					BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload,
-					properties);
+					BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
 
 			httpBridge.request(endpoint).thenAccept(response -> {
 				log.info("Limit {} successfully set for inverter [{}]  ", individualPowerLimit, serialNumber);
@@ -408,38 +408,40 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	}
 
 	private void updateLimitStatusChannels() {
-	    String statusApiUrl = this.baseUrl + "/api/limit/status";
-	    this.httpBridge.getJson(statusApiUrl).thenAccept(responseJson -> {
-	        if (responseJson.isJsonObject()) {
-	            JsonObject responseObj = responseJson.getAsJsonObject();
-	            for (Map.Entry<String, JsonElement> entry : responseObj.entrySet()) {
-	                String inverterSerialNumber = entry.getKey(); // Using the serial number to identify the inverter
-	                JsonObject inverterLimitInfo = entry.getValue().getAsJsonObject();
+		String statusApiUrl = this.baseUrl + "/api/limit/status";
+		this.httpBridge.getJson(statusApiUrl).thenAccept(responseJson -> {
+			if (responseJson.isJsonObject()) {
+				JsonObject responseObj = responseJson.getAsJsonObject();
+				for (Map.Entry<String, JsonElement> entry : responseObj.entrySet()) {
+					String inverterSerialNumber = entry.getKey(); // Using the serial number to identify the inverter
+					JsonObject inverterLimitInfo = entry.getValue().getAsJsonObject();
 
-	                int currentLimitPercentage = inverterLimitInfo.get("limit_relative").getAsInt();
-	                int maximumPowerCapability = inverterLimitInfo.get("max_power").getAsInt();
-	                String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
+					int currentLimitPercentage = inverterLimitInfo.get("limit_relative").getAsInt();
+					int maximumPowerCapability = inverterLimitInfo.get("max_power").getAsInt();
+					String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
 
-	                // Retrieve inverter data based on its serial number and update its power limits and status
-	                InverterData inverter = inverterDataMap.get(inverterSerialNumber);
-	                if (inverter != null) {
-	                	
-	                    this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitAdjustmentStatus);
-	            		this.channel(Opendtu.ChannelId.MAX_POWER_INVERTER).setNextValue(maximumPowerCapability);	
-	            		this.channel(Opendtu.ChannelId.RELATIVE_LIMIT).setNextValue(currentLimitPercentage);	
+					// Retrieve inverter data based on its serial number and update its power limits
+					// and status
+					InverterData inverter = inverterDataMap.get(inverterSerialNumber);
+					if (inverter != null) {
 
-	                    this.logDebug(this.log, "Limit Status: " + limitAdjustmentStatus + " for Inverter: " + inverterSerialNumber);
-	                } else {
-	                    this.logWarn(this.log, "Inverter data not found for serial number [" + inverterSerialNumber + "].");
-	                }
-	            }
-	        }
-	    }).exceptionally(exception -> {
-	        this.logError(this.log, "Error fetching inverter status: " + exception.getMessage());
-	        return null;
-	    });
+						this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitAdjustmentStatus);
+						this.channel(Opendtu.ChannelId.MAX_POWER_INVERTER).setNextValue(maximumPowerCapability);
+						this.channel(Opendtu.ChannelId.RELATIVE_LIMIT).setNextValue(currentLimitPercentage);
+
+						this.logDebug(this.log,
+								"Limit Status: " + limitAdjustmentStatus + " for Inverter: " + inverterSerialNumber);
+					} else {
+						this.logWarn(this.log,
+								"Inverter data not found for serial number [" + inverterSerialNumber + "].");
+					}
+				}
+			}
+		}).exceptionally(exception -> {
+			this.logError(this.log, "Error fetching inverter status: " + exception.getMessage());
+			return null;
+		});
 	}
-
 
 	@Override
 	public Timedata getTimedata() {
