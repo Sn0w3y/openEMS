@@ -58,10 +58,17 @@ import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
 })
 
 /*
- * ToDo: - Set overall Power-Limit. I´ve made different Limits for each phase
- * which is useless - Tests on a cloudy day which will cause a lot of deviation
- * while producing power - Add modbus slave functionality - Maybe make
- * inverter-limits dynamic. For example: WR1 600W, WR2 800W. Overall limit
+ * ToDo: 
+ * 
+ * - Set overall Power-Limit. I´ve made different Limits for each phase
+ * which is useless 
+ * 
+ * - Tests on a cloudy day which will cause a lot of deviation
+ * while producing power 
+ * 
+ * - Add modbus slave functionality 
+ * 
+ * - Maybe make inverter-limits dynamic. For example: WR1 600W, WR2 800W. Overall limit
  * 1000W. So individual limits can be set according to output power or better:
  * To a combination of actual production power AND max. output power. In an
  * east/west configuration each inverter can deliver max power
@@ -117,16 +124,14 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	@Activate
 	private void activate(ComponentContext context, Config config) {
-		// Call the superclass activate method to initialize the component with the
-		// provided configurations.
+		// Call the superclass activate method to initialize the component with the provided configurations.
 		super.activate(context, config.id(), config.alias(), config.enabled());
 
 		// Encode authentication credentials for HTTP communication with the inverter.
 		String auth = config.username() + ":" + config.password();
 		this.encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes());
 
-		// Collect inverter data based on the configuration and initialize the HTTP
-		// bridge.
+		// Collect inverter data based on the configuration and initialize the HTTP bridge.
 		this.validInverters = InverterData.collectInverterData(config);
 		this.numInverters = this.validInverters.size();
 		this.baseUrl = "http://" + config.ip();
