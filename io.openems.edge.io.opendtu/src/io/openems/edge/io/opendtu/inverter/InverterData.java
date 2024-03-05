@@ -3,6 +3,8 @@ package io.openems.edge.io.opendtu.inverter;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.openems.edge.common.component.OpenemsComponent;
+
 
 public class InverterData {
 	    String serialNumber;

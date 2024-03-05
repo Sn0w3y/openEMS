@@ -321,7 +321,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 		switch (event.getTopic()) {
 		case EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE:
-			this.updateLimitStatusChannel();
+			this.updateLimitStatusChannels();
 			break;
 		}
 
@@ -413,44 +413,40 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		return;
 	}
 
-	private void updateLimitStatusChannel() {
+	private void updateLimitStatusChannels() {
+	    String statusApiUrl = this.baseUrl + "/api/limit/status";
+	    this.httpBridge.getJson(statusApiUrl).thenAccept(responseJson -> {
+	        if (responseJson.isJsonObject()) {
+	            JsonObject responseObj = responseJson.getAsJsonObject();
+	            for (Map.Entry<String, JsonElement> entry : responseObj.entrySet()) {
+	                String inverterSerialNumber = entry.getKey(); // Using the serial number to identify the inverter
+	                JsonObject inverterLimitInfo = entry.getValue().getAsJsonObject();
 
-		String url = this.baseUrl + "/api/limit/status";
-		this.httpBridge.getJson(url).thenAccept(responseJson -> {
-			if (responseJson.isJsonObject()) {
-				JsonObject responseObj = responseJson.getAsJsonObject();
-				for (Map.Entry<String, JsonElement> entry : responseObj.entrySet()) {
-					String serialNumber = entry.getKey(); // Serial is key for inverter map
-					JsonObject limitInfo = entry.getValue().getAsJsonObject();
+	                int currentLimitPercentage = inverterLimitInfo.get("limit_relative").getAsInt();
+	                int maximumPowerCapability = inverterLimitInfo.get("max_power").getAsInt();
+	                String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
 
-					int limitRelative = limitInfo.get("limit_relative").getAsInt();
-					/*
-					 * // maxPower holds the maximum possible power - not the limit!!! so we don´t
-					 * need to set it here
-					 */
-					int maxPower = limitInfo.get("max_power").getAsInt();
-					String limitSetStatus = limitInfo.get("limit_set_status").getAsString();
+	                // Retrieve inverter data based on its serial number and update its power limits and status
+	                InverterData inverter = inverterDataMap.get(inverterSerialNumber);
+	                if (inverter != null) {
+	                	
+	                    this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitAdjustmentStatus);
+	            		this.channel(Opendtu.ChannelId.MAX_POWER_INVERTER).setNextValue(maximumPowerCapability);	
+	            		this.channel(Opendtu.ChannelId.RELATIVE_LIMIT).setNextValue(currentLimitPercentage);	
+	                    this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitAdjustmentStatus);
 
-					// Find inverter and update values
-					InverterData inverterData = inverterDataMap.get(serialNumber);
-					if (inverterData != null) {
-						inverterData.setMaxPower(maxPower);
-						inverterData.setCurrentPowerLimitRelative(limitRelative); // percent
-						inverterData.setLimitSetStatus(limitSetStatus); // "Ok", "Pending"
-						
-						this.channel(Opendtu.ChannelId.LIMIT_STATUS).setNextValue(limitSetStatus); // <- Added Limit Status to Channel
-						
-						this.logDebug(this.log, "Status Limit : " + limitSetStatus + " Serial: " + serialNumber);
-					} else {
-						this.logWarn(log, "No data found for inverter with serial [" + serialNumber + "] .");
-					}
-				}
-			}
-		}).exceptionally(ex -> {
-			this.logError(log, "Error Updating status channel: " + ex.getMessage());
-			return null;
-		});
+	                    this.logDebug(this.log, "Limit Status: " + limitAdjustmentStatus + " for Inverter: " + inverterSerialNumber);
+	                } else {
+	                    this.logWarn(this.log, "Inverter data not found for serial number [" + inverterSerialNumber + "].");
+	                }
+	            }
+	        }
+	    }).exceptionally(exception -> {
+	        this.logError(this.log, "Error fetching inverter status: " + exception.getMessage());
+	        return null;
+	    });
 	}
+
 
 	@Override
 	public Timedata getTimedata() {

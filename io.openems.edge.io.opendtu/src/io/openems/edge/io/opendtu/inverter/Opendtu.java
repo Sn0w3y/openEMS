@@ -21,7 +21,7 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 	 * Channel for setting the Power Limit.
 	 */
 	public default WriteChannel<Integer> setPowerLimit() {
-		return this.channel(ChannelId.POWER_LIMIT);
+		return this.channel(ChannelId.RELATIVE_LIMIT);
 	}
 
 	public static enum ChannelId implements io.openems.edge.common.channel.ChannelId {
@@ -52,9 +52,16 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 
 		LIMIT_STATUS(Doc.of(OpenemsType.STRING)//
 				.text("Limit Status")), //
-
-		POWER_LIMIT(Doc.of(OpenemsType.INTEGER)//
+		
+		MAX_POWER_INVERTER(Doc.of(OpenemsType.INTEGER)//
+				.accessMode(AccessMode.READ_ONLY)),
+		
+		RELATIVE_LIMIT(Doc.of(OpenemsType.INTEGER)//
 				.accessMode(AccessMode.READ_WRITE)),
+
+		ABSOLUTE_LIMIT(Doc.of(OpenemsType.INTEGER)//
+				.accessMode(AccessMode.READ_WRITE)),
+		
 		POWER_LIMIT_FAULT(Doc.of(Level.FAULT)); //
 
 		private final Doc doc;
