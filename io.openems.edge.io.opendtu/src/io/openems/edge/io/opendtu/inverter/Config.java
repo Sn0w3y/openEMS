@@ -26,9 +26,6 @@ import io.openems.edge.meter.api.MeterType;
 
 	@AttributeDefinition(name = "Is enabled?", description = "Is this Component enabled?")
 	boolean enabled() default true;
-
-	//@AttributeDefinition(name = "Phase", description = "Which Phase is this Inverter connected to?")
-	//SinglePhase phase() default SinglePhase.L1;
 	
     @AttributeDefinition(name = "Inverter Serial Number connected to Phase L1", description = "The serial number of the inverter connected to the DTU on Phase 1. Leave empty if none")
     String serialNumberL1() default "";
@@ -43,7 +40,13 @@ import io.openems.edge.meter.api.MeterType;
 	String ip();
     
     @AttributeDefinition(name = "Single inverter Initial Power Limit", description = "The initial power limit per inverter setting in percent. Default 100%")
-    int initialPowerLimit() default 100;
+    int relativePowerLimit() default 100;
+    
+    @AttributeDefinition(name = "Single inverter Initial Power Limit", description = "The initial power limit per inverter setting in Watt")
+    int absolutePowerLimit();
+    
+    @AttributeDefinition(name = "Single inverter Absolute Power Limit Delay", description = "This defines in which Time (in Seconds) the PowerLimit shall be set.")
+    int delay() default 30;
 
 	@AttributeDefinition(name = "Meter-Type", description = "What is measured by this DTU?")
 	MeterType type() default MeterType.PRODUCTION;

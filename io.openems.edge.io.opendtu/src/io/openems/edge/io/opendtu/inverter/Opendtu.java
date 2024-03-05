@@ -70,6 +70,7 @@ public interface Opendtu extends SinglePhaseMeter, ElectricityMeter, OpenemsComp
 		 * </ul>
 		 */
 		MAX_POWER_INVERTER(Doc.of(OpenemsType.INTEGER)//
+				.unit(Unit.WATT) //
 				.accessMode(AccessMode.READ_ONLY)),
 		/**
 		 * The relative Limit Power set to an Inverter.

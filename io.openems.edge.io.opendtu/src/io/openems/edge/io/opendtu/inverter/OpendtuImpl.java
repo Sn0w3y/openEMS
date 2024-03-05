@@ -9,6 +9,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Activate;
@@ -41,10 +42,11 @@ import io.openems.edge.common.event.EdgeEventConstants;
 import io.openems.edge.meter.api.ElectricityMeter;
 import io.openems.edge.meter.api.MeterType;
 import io.openems.edge.meter.api.SinglePhase;
+import io.openems.edge.pvinverter.api.ManagedSymmetricPvInverter;
 import io.openems.edge.timedata.api.Timedata;
 import io.openems.edge.timedata.api.TimedataProvider;
 import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
-import io.openems.edge.pvinverter.api.ManagedSymmetricPvInverter;
+
 
 @Designate(ocd = Config.class, factory = true)
 @Component(//
@@ -78,7 +80,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private BridgeHttp httpBridge;
 	private String baseUrl;
 	private String encodedAuth;
-
+	
 	@Reference(policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
 	private volatile Timedata timedata;
 
@@ -100,6 +102,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private SinglePhase phase = null;
 	private int numInverters = 0;
 	private Boolean isInitialPowerLimitSet = false;
+	private int delay;
 
 	private List<InverterData> validInverters = new ArrayList<>();
 	private Map<String, InverterData> inverterDataMap = new HashMap<>();
@@ -116,11 +119,11 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private void activate(ComponentContext context, Config config) {
 		super.activate(context, config.id(), config.alias(), config.enabled());
 
-		this.validInverters = InverterData.collectInverterData(config); // Adds Inverter to Array with serial and phase
-																		// info
+		this.validInverters = InverterData.collectInverterData(config);
 		this.numInverters = validInverters.size();
 
 		this.meterType = config.type();
+		this.delay = config.delay();
 
 		this.baseUrl = "http://" + config.ip();
 		this.httpBridge = this.httpBridgeFactory.get();
@@ -148,7 +151,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					"application/x-www-form-urlencoded");
 			for (InverterData inverter : validInverters) {
 				String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":1, \"limit_value\":%d}",
-						inverter.serialNumber, config.initialPowerLimit());
+						inverter.serialNumber, config.relativePowerLimit());
 				String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
 				BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(this.baseUrl + "/api/limit/config",
 						HttpMethod.POST, BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT,
@@ -375,36 +378,41 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	}
 
+	private final Debouncer debouncer = new Debouncer(delay, TimeUnit.SECONDS); // Initialize debouncer with a 30-second delay
+
 	public void setActivePowerLimit(int powerLimit) throws OpenemsNamedException {
+	    int individualPowerLimit = Math.round(powerLimit / this.numInverters);
 
-		// first, we use a fix division:
-		int individualPowerLimit = Math.round(powerLimit / this.numInverters); // devide the total limit
+	    inverterDataMap.forEach((serialNumber, inverterData) -> {
+	        // Debounce the limit setting task
+	        debouncer.debounce(serialNumber, () -> {
+	            if ("Pending".equals(inverterData.getlimitSetStatus())) {
+	                log.info("Still Pending to set limit for serial [{}] ", serialNumber);
+	                return;
+	            }
+	            if (Math.abs(inverterData.getCurrentPowerLimitAbsolute() - individualPowerLimit) < 5) {
+	                log.info("No changes in PowerLimit for serial [{}] ", serialNumber);
+	                return;
+	            }
 
-		inverterDataMap.forEach((serialNumber, inverterData) -> {
-			// check if it´s necessary to set a new limit
-			if (inverterData.getlimitSetStatus() != null && inverterData.getlimitSetStatus().equals("Pending")) {
-				log.info("Still Pending to set limit for serial [{}] ", serialNumber);
-				return;
-			}
-			if ((Math.abs(inverterData.getCurrentPowerLimitAbsolute() - individualPowerLimit)) < 5) {
-				log.info("No changes in PowerLimit for serial [{}] ", serialNumber);
-				return;
-			}
-			String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":0, \"limit_value\":%d}",
-					serialNumber, (int) individualPowerLimit);
+	            String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":0, \"limit_value\":%d}",
+	                    serialNumber, individualPowerLimit);
+	            String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
+	            Map<String, String> properties = Map.of("Authorization", "Basic " + this.encodedAuth, "Content-Type",
+	                    "application/x-www-form-urlencoded");
 
-			String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
-			Map<String, String> properties = Map.of("Authorization", "Basic " + this.encodedAuth, "Content-Type",
-					"application/x-www-form-urlencoded");
+	            BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(baseUrl + "/api/limit/config", HttpMethod.POST,
+	                    BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
 
-			BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(baseUrl + "/api/limit/config", HttpMethod.POST,
-					BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
-
-			httpBridge.request(endpoint).thenAccept(response -> {
-				log.info("Limit {} successfully set for inverter [{}]  ", individualPowerLimit, serialNumber);
-			});
-		});
-		return;
+	            httpBridge.request(endpoint).thenAccept(response -> {
+	                this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(individualPowerLimit);
+	                log.info("Limit {} successfully set for inverter [{}]  ", individualPowerLimit, serialNumber);
+	            }).exceptionally(ex -> {
+	                log.error("Error setting limit for inverter [{}]: {}", serialNumber, ex.getMessage());
+	                return null;
+	            });
+	        });
+	    });
 	}
 
 	private void updateLimitStatusChannels() {
