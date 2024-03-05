@@ -48,11 +48,22 @@ import io.openems.edge.pvinverter.api.ManagedSymmetricPvInverter;
 @Designate(ocd = Config.class, factory = true)
 @Component(//
 		immediate = true, //
-		configurationPolicy = ConfigurationPolicy.REQUIRE //
-)
+		configurationPolicy = ConfigurationPolicy.REQUIRE, property = { //
+				"type=PRODUCTION" //
+		})
 @EventTopics({ //
 		EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE, //
 })
+
+/*
+ * ToDo:
+ * 		- Set overall Power-Limit. I´ve made different Limits for each phase which is useless 
+ * 		- Tests on a cloudy day which will cause a lot of deviation while producing power 
+ * 		- Add modbus slave functionality 
+ * 		- Maybe make inverter-limits dynamic. For example: WR1 600W, WR2 800W. Overall limit 1000W. So individual limits can be set according to output power or better:
+ * 			To a combination of actual production power AND max. output power. In an east/west configuration each inverter can deliver max power 
+ * 
+ */
 public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
 		EventHandler, TimedataProvider, ManagedSymmetricPvInverter {
 
@@ -66,10 +77,20 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private String baseUrl;
 	private String encodedAuth;
 
-	private volatile Timedata timedata = null;
+	@Reference(policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
+	private volatile Timedata timedata;
 
 	private final CalculateEnergyFromPower calculateActualEnergy = new CalculateEnergyFromPower(this,
 			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY);
+
+	private final CalculateEnergyFromPower calculateActualEnergyL1 = new CalculateEnergyFromPower(this,
+			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L1);
+
+	private final CalculateEnergyFromPower calculateActualEnergyL2 = new CalculateEnergyFromPower(this,
+			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L2);
+
+	private final CalculateEnergyFromPower calculateActualEnergyL3 = new CalculateEnergyFromPower(this,
+			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L3);
 
 	private final Logger log = LoggerFactory.getLogger(OpendtuImpl.class);
 
@@ -87,8 +108,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				ElectricityMeter.ChannelId.values(), //
 				ManagedSymmetricPvInverter.ChannelId.values(), Opendtu.ChannelId.values() //
 		);
-
-		// SinglePhaseMeter.calculateSinglePhaseFromActivePower(this);
 	}
 
 	@Activate
@@ -96,7 +115,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		super.activate(context, config.id(), config.alias(), config.enabled());
 
 		this.validInverters = InverterData.collectInverterData(config); // Adds Inverter to Array with serial and phase
-																		// information
+																		// info
 		this.numInverters = validInverters.size();
 
 		this.meterType = config.type();
@@ -201,7 +220,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				JsonObject frequencyObj = JsonUtils.getAsJsonObject(ac0Data, "Frequency");
 				frequency = JsonUtils.getAsInt(frequencyObj, "v");
 
-				totalPower = JsonUtils.getAsFloat(getAsJsonObject(totalArray, "Power"), "v"); // W
+				totalPower = JsonUtils.getAsFloat(getAsJsonObject(totalArray, "Power"), "v"); // in W
 			}
 
 			catch (Exception e) {
@@ -277,7 +296,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		this._setFrequency(scaledFrequency); // We assume frequency to be equal on all phases/inverters
 		this._setActivePower(scaledTotalPower); // ActivePower over the whole cluster
 		this._setSlaveCommunicationFailed(false);
-
 	}
 
 	@Deactivate
@@ -296,7 +314,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	@Override
 	public void handleEvent(Event event) {
-		// this.calculateEnergy();
+		this.calculateEnergy(); // <-- Belongs here and tested working
 		if (!this.isEnabled()) {
 			return;
 		}
@@ -304,9 +322,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		switch (event.getTopic()) {
 		case EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE:
 			this.updateLimitStatusChannel();
-			break;
-		case EdgeEventConstants.TOPIC_CYCLE_AFTER_PROCESS_IMAGE:
-			this.calculateEnergy();
 			break;
 		}
 
@@ -325,6 +340,37 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		} else {
 			this.calculateActualEnergy.update(0);
 		}
+
+		var actualPowerL1 = this.getActivePowerL1().get();
+		if (actualPowerL1 == null) {
+			// Not available
+			this.calculateActualEnergyL1.update(null);
+		} else if (actualPowerL1 > 0) {
+			this.calculateActualEnergyL1.update(actualPowerL1);
+		} else {
+			this.calculateActualEnergyL1.update(0);
+		}
+
+		var actualPowerL2 = this.getActivePowerL2().get();
+		if (actualPowerL2 == null) {
+			// Not available
+			this.calculateActualEnergyL2.update(null);
+		} else if (actualPowerL2 > 0) {
+			this.calculateActualEnergyL2.update(actualPowerL2);
+		} else {
+			this.calculateActualEnergyL2.update(0);
+		}
+
+		var actualPowerL3 = this.getActivePowerL3().get();
+		if (actualPowerL3 == null) {
+			// Not available
+			this.calculateActualEnergyL3.update(null);
+		} else if (actualPowerL3 > 0) {
+			this.calculateActualEnergyL3.update(actualPowerL3);
+		} else {
+			this.calculateActualEnergyL3.update(0);
+		}
+
 	}
 
 	public void setActivePowerLimit(int powerLimit) {
@@ -334,7 +380,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 		inverterDataMap.forEach((serialNumber, inverterData) -> {
 			// check if it´s necessary to set a new limit
-			if (inverterData.getlimitSetStatus().equals("Pending")) {
+			if (inverterData.getlimitSetStatus() != null && inverterData.getlimitSetStatus().equals("Pending")) {
 				log.info("Still Pending to set limit for serial [{}] ", serialNumber);
 				return;
 			}
