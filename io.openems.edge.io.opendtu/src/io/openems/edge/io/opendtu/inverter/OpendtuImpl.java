@@ -173,30 +173,41 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	}
 
 	private void determineAndSetPowerLimit(Config config, InverterData inverter, Map<String, String> properties) {
-		int limitValue;
-		int limitType;
-		// Determine if setting absolute or relative power limit.
-		if (config.absolutePowerLimit() != -1) {
-			limitValue = config.absolutePowerLimit();
-			limitType = 0; // Absolute limit type.
-		} else {
-			limitValue = (config.relativePowerLimit() != -1) ? config.relativePowerLimit() : 100;
-			limitType = 1; // Relative limit type, either specified or default to 100%.
-		}
+	    Integer limitValue = null; // Use null to represent no action.
+	    Integer limitType = null; // Use null to indicate no limit type has been determined.
 
-		// Prepare and send HTTP request to set the power limit.
-		String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":%d, \"limit_value\":%d}",
-				inverter.getSerialNumber(), limitType, limitValue);
+	    // Determine if setting absolute or relative power limit.
+	    if (config.absolutePowerLimit() != -1) {
+	        limitValue = config.absolutePowerLimit();
+	        limitType = 0; // Absolute limit type.
+	    } else if (config.relativePowerLimit() != -1) {
+	        limitValue = config.relativePowerLimit();
+	        limitType = 1; // Relative limit type.
+	    }
 
-		String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
+	    // Check if a limit has been determined. If not, do nothing.
+	    if (limitValue == null || limitType == null) {
+	        return; // Exit the method early if there's no configuration.
+	    }
 
-		BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(this.baseUrl + "/api/limit/config", HttpMethod.POST,
-				BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
+	    // Final or effectively final copies for use in lambda expression
+	    final Integer finalLimitType = limitType;
+	    final Integer finalLimitValue = limitValue;
 
-		this.httpBridge.request(endpoint)
-				.thenAccept(response -> this.handlePowerLimitResponse(inverter, limitType, limitValue))
-				.exceptionally(ex -> this.handlePowerLimitError(inverter, ex));
+	    // Prepare and send HTTP request to set the power limit.
+	    String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":%d, \"limit_value\":%d}",
+	            inverter.getSerialNumber(), finalLimitType, finalLimitValue);
+
+	    String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
+
+	    BridgeHttp.Endpoint endpoint = new BridgeHttp.Endpoint(this.baseUrl + "/api/limit/config", HttpMethod.POST,
+	            BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
+
+	    this.httpBridge.request(endpoint)
+	            .thenAccept(response -> this.handlePowerLimitResponse(inverter, finalLimitType, finalLimitValue))
+	            .exceptionally(ex -> this.handlePowerLimitError(inverter, ex));
 	}
+
 
 	private void handlePowerLimitResponse(InverterData inverter, int limitType, int limitValue) {
 		// Log success message
