@@ -3,58 +3,55 @@ package io.openems.edge.io.opendtu.inverter;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.AttributeType;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
-
 import io.openems.edge.meter.api.MeterType;
 
-
-@ObjectClassDefinition(//
-		name = "openDTU Hoymiles Inverter", //
-		description = "Implements the openDTU for Hoymiles Inverter.")
+@ObjectClassDefinition(name = "Hoymiles Inverter", description = "Configures Hoymiles Inverter via openDTU.")
 @interface Config {
 
-	@AttributeDefinition(name = "Component-ID", description = "Unique ID of this Component")
-	String id() default "io0";
+    @AttributeDefinition(name = "ID", description = "Component unique identifier")
+    String id() default "io0";
 
-	@AttributeDefinition(name = "Alias", description = "Human-readable name of this Component; defaults to Component-ID")
-	String alias() default "";
-	
-	@AttributeDefinition(name = "Username", description = "Username for openDTU to make settings possible")
-	String username() default "";
-	
-	@AttributeDefinition(name = "Password", description = "Password for oprnDTU to make settings possible",  type = AttributeType.PASSWORD)
-	String password() default "";
+    @AttributeDefinition(name = "Alias", description = "Readable name; defaults to ID")
+    String alias() default "";
 
-	@AttributeDefinition(name = "Is enabled?", description = "Is this Component enabled?")
-	boolean enabled() default true;
-	
-    @AttributeDefinition(name = "Inverter Serial Number connected to Phase L1", description = "The serial number of the inverter connected to the DTU on Phase 1. Leave empty if none")
+    @AttributeDefinition(name = "Username", description = "openDTU username")
+    String username() default "";
+
+    @AttributeDefinition(name = "Password", description = "openDTU password", type = AttributeType.PASSWORD)
+    String password() default "";
+
+    @AttributeDefinition(name = "Enabled", description = "Enable this component?")
+    boolean enabled() default true;
+
+    @AttributeDefinition(name = "SN Phase L1", description = "Inverter serial for Phase L1")
     String serialNumberL1() default "";
-    
-    @AttributeDefinition(name = "Inverter Serial Number connected to Phase L2", description = "The serial number of the inverter connected to the DTU on Phase 2. Leave empty if none")
-    String serialNumberL2() default "";
-    
-    @AttributeDefinition(name = "Inverter Serial Number connected to Phase L3", description = "The serial number of the inverter connected to the DTU on Phase 3. Leave empty if none")
-    String serialNumberL3() default "";    
 
-	@AttributeDefinition(name = "IP-Address", description = "The IP address of the openDTU.")
-	String ip();
-    
-    @AttributeDefinition(name = "Single inverter Initial Power Limit", description = "The initial power limit per inverter setting in percent. Needs to be configured. Otherwise it is set to 100%")
+    @AttributeDefinition(name = "SN Phase L2", description = "Inverter serial for Phase L2")
+    String serialNumberL2() default "";
+
+    @AttributeDefinition(name = "SN Phase L3", description = "Inverter serial for Phase L3")
+    String serialNumberL3() default "";
+
+    @AttributeDefinition(name = "IP", description = "openDTU IP address")
+    String ip();
+
+    @AttributeDefinition(name = "Rel. Power Limit (%)", description = "Initial % power limit/inverter")
     int relativePowerLimit() default -1;
-    
-    @AttributeDefinition(name = "Single inverter Initial Power Limit", description = "The initial power limit per inverter setting in Watt. Set to -1 if not used.")
+
+    @AttributeDefinition(name = "Abs. Power Limit (W)", description = "Initial power limit/inverter in Watts")
     int absolutePowerLimit() default -1;
-    
-    @AttributeDefinition(name = "Single inverter Absolute Power Limit Delay", description = "This defines in which Time (in Seconds) the PowerLimit shall be set.")
+
+    @AttributeDefinition(name = "Threshold", description = "Power change threshold")
+    int threshold() default 100;
+
+    @AttributeDefinition(name = "Delay (s)", description = "Delay for setting power limit")
     int delay() default 30;
 
-	@AttributeDefinition(name = "Meter-Type", description = "What is measured by this DTU?")
-	MeterType type() default MeterType.PRODUCTION;
-	
-	@AttributeDefinition(name = "Enable Debug-Mode?", description = "Shall Debug-Mode be enabled?")
-	boolean debugMode() default false;
+    @AttributeDefinition(name = "Meter Type", description = "DTU measurement type")
+    MeterType type() default MeterType.PRODUCTION;
 
-	String webconsole_configurationFactory_nameHint() default "IO openDTU Device [{id}]";
+    @AttributeDefinition(name = "Debug", description = "Enable debug mode?")
+    boolean debugMode() default false;
 
-
+    String webconsole_configurationFactory_nameHint() default "IO openDTU Device [{id}]";
 }

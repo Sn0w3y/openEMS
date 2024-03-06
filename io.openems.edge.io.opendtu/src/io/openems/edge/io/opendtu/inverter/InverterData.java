@@ -35,20 +35,10 @@ public class InverterData {
 		this.phase = phase;
 	}
 
-	/**
-	 * Retrieves the serial number of the inverter.
-	 * 
-	 * @return The serial number as a {@code String}.
-	 */
 	public String getSerialNumber() {
 		return this.serialNumber;
 	}
 
-	/**
-	 * Sets the serial number for the inverter.
-	 * 
-	 * @param serialNumber The new serial number as a {@code String}.
-	 */
 	public void setSerialNumber(String serialNumber) {
 		this.serialNumber = serialNumber;
 	}
@@ -81,8 +71,8 @@ public class InverterData {
 		return this.maxPower;
 	}
 
-	public void setMaxPower(int power) {
-		this.maxPower = power; // possibly related to Homer Simpson??
+	public void setAbsoluteLimit(int power) {
+		this.maxPower = power;
 	}
 
 	public int getCurrent() {
@@ -128,7 +118,6 @@ public class InverterData {
 	 * @return A {@code String} representing the current status of the limit
 	 *         setting.
 	 */
-
 	public String getlimitSetStatus() {
 		return this.limitSetStatus;
 	}
@@ -137,21 +126,11 @@ public class InverterData {
 		this.limitSetStatus = limitSetStatus;
 	}
 
-	/**
-	 * Retrieves the current power limit set for the inverter in percent.
-	 * 
-	 * <p>
-	 * Returns the power limit currently set for the inverter as a percentage of its
-	 * maximum capacity.
-	 * 
-	 * @return An {@code int} value representing the current power limit set for the
-	 *         inverter, in percent.
-	 */
 	public int getCurrentPowerLimitRelative() {
 		return this.currentPowerLimitRelative;
 	}
 
-	public void setCurrentPowerLimitRelative(int currentPowerLimitRelative) {
+	public void setPowerLimitRelative(int currentPowerLimitRelative) {
 		this.currentPowerLimitRelative = currentPowerLimitRelative;
 	}
 
@@ -159,7 +138,7 @@ public class InverterData {
 		return this.currentPowerLimitAbsolute;
 	}
 
-	public void setCurrentPowerLimitAbsolute(int currentPowerLimitAbsolute) {
+	public void setLimitRelative(int currentPowerLimitAbsolute) {
 		// Adjust the total sum when updating the currentPowerLimitAbsolute value
 		// Subtract the old value and add the new value to the total
 		synchronized (InverterData.class) {
@@ -167,22 +146,9 @@ public class InverterData {
 			totalCurrentPowerLimitAbsolute += currentPowerLimitAbsolute;
 		}
 		this.currentPowerLimitAbsolute = currentPowerLimitAbsolute;
-		// this.lastUpdate = System.currentTimeMillis(); // Update the lastUpdate
-		// timestamp
+		// this.lastUpdate = System.currentTimeMillis(); // Update the lastUpdate timestamp
 
 	}
-	
-	public void setPowerLimits(Integer limitType, Integer limitValue) {
-	    this.setLimitType(limitType);
-	    if (limitType == 0) { // Absolute limit type
-	        this.setCurrentPowerLimitAbsolute(limitValue);
-	        this.setCurrentPowerLimitRelative(0); // Indicate that the relative limit is not used
-	    } else { // Relative limit type
-	        this.setCurrentPowerLimitRelative(limitValue);
-	        this.setCurrentPowerLimitAbsolute(0); // Indicate that the absolute limit is not used
-	    }
-	}
-
 
 	/**
 	 * Static method to get the total sum of CurrentPowerLimitAbsolute across all
