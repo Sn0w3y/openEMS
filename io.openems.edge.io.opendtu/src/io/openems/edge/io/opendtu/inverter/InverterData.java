@@ -18,6 +18,7 @@ public class InverterData {
 	private int currentPowerLimitRelative;
 	private String limitSetStatus;
 	private static int totalCurrentPowerLimitAbsolute = 0;
+	private static int totalPower = 0;
 
 	private long lastUpdate;
 
@@ -64,9 +65,17 @@ public class InverterData {
 		return this.power;
 	}
 
-	public void setPower(int power) {
-		this.power = power;
-	}
+    public void setPower(int power) {
+        synchronized (InverterData.class) {
+            totalPower -= this.power;
+            totalPower += power;
+        }
+        this.power = power;
+    }
+
+    public static int getTotalPower() {
+    	return totalPower;
+    }
 
 	public int getMaxPower() {
 		return this.maxPower;
@@ -162,6 +171,18 @@ public class InverterData {
 		// timestamp
 
 	}
+	
+	public void setPowerLimits(Integer limitType, Integer limitValue) {
+	    this.setLimitType(limitType);
+	    if (limitType == 0) { // Absolute limit type
+	        this.setCurrentPowerLimitAbsolute(limitValue);
+	        this.setCurrentPowerLimitRelative(0); // Indicate that the relative limit is not used
+	    } else { // Relative limit type
+	        this.setCurrentPowerLimitRelative(limitValue);
+	        this.setCurrentPowerLimitAbsolute(0); // Indicate that the absolute limit is not used
+	    }
+	}
+
 
 	/**
 	 * Static method to get the total sum of CurrentPowerLimitAbsolute across all
