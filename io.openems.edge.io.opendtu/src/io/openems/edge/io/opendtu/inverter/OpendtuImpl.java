@@ -87,12 +87,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	private final CalculateEnergyFromPower calculateActualEnergy = new CalculateEnergyFromPower(this,
 			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY);
-	private final CalculateEnergyFromPower calculateActualEnergyL1 = new CalculateEnergyFromPower(this,
-			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L1);
-	private final CalculateEnergyFromPower calculateActualEnergyL2 = new CalculateEnergyFromPower(this,
-			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L2);
-	private final CalculateEnergyFromPower calculateActualEnergyL3 = new CalculateEnergyFromPower(this,
-			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L3);
 
 	private String baseUrl;
 	private String encodedAuth;
@@ -365,36 +359,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 			this.calculateActualEnergy.update(actualPower);
 		} else {
 			this.calculateActualEnergy.update(0);
-		}
-
-		var actualPowerL1 = this.getActivePowerL1().get();
-		if (actualPowerL1 == null) {
-			// Not available
-			this.calculateActualEnergyL1.update(null);
-		} else if (actualPowerL1 > 0) {
-			this.calculateActualEnergyL1.update(actualPowerL1);
-		} else {
-			this.calculateActualEnergyL1.update(0);
-		}
-
-		var actualPowerL2 = this.getActivePowerL2().get();
-		if (actualPowerL2 == null) {
-			// Not available
-			this.calculateActualEnergyL2.update(null);
-		} else if (actualPowerL2 > 0) {
-			this.calculateActualEnergyL2.update(actualPowerL2);
-		} else {
-			this.calculateActualEnergyL2.update(0);
-		}
-
-		var actualPowerL3 = this.getActivePowerL3().get();
-		if (actualPowerL3 == null) {
-			// Not available
-			this.calculateActualEnergyL3.update(null);
-		} else if (actualPowerL3 > 0) {
-			this.calculateActualEnergyL3.update(actualPowerL3);
-		} else {
-			this.calculateActualEnergyL3.update(0);
 		}
 
 	}
