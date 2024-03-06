@@ -13,9 +13,21 @@ public class InverterData {
 	private int current;
 	private int frequency;
 
+	private int limitType; // 0 relative; 1 absolute
 	private int currentPowerLimitAbsolute;
 	private int currentPowerLimitRelative;
 	private String limitSetStatus;
+	private static int totalCurrentPowerLimitAbsolute = 0;
+
+	private long lastUpdate;
+
+	public long getLastUpdate() {
+		return this.lastUpdate;
+	}
+
+	public void setLastUpdate(long lastUpdate) {
+		this.lastUpdate = lastUpdate;
+	}
 
 	public InverterData(String serialNumber, String phase) {
 		this.serialNumber = serialNumber;
@@ -88,6 +100,14 @@ public class InverterData {
 		this.frequency = frequency;
 	}
 
+	public int getLimitType() {
+		return this.limitType;
+	}
+
+	public void setLimitType(int limitType) {
+		this.limitType = limitType;
+	}
+
 	/**
 	 * Retrieves the current status of the limit setting.
 	 * 
@@ -99,6 +119,7 @@ public class InverterData {
 	 * @return A {@code String} representing the current status of the limit
 	 *         setting.
 	 */
+
 	public String getlimitSetStatus() {
 		return this.limitSetStatus;
 	}
@@ -125,23 +146,31 @@ public class InverterData {
 		this.currentPowerLimitRelative = currentPowerLimitRelative;
 	}
 
-	/**
-	 * Retrieves the current power limit set for the inverter in watts.
-	 * 
-	 * <p>
-	 * Returns the absolute power limit currently imposed on the inverter, measured
-	 * in watts. The absolute limit specifies a fixed maximum power output,
-	 * providing a direct control over the inverter's energy production capacity.
-	 * 
-	 * @return An {@code int} value representing the current absolute power limit
-	 *         set for the inverter, in watts.
-	 */
 	public int getCurrentPowerLimitAbsolute() {
 		return this.currentPowerLimitAbsolute;
 	}
 
 	public void setCurrentPowerLimitAbsolute(int currentPowerLimitAbsolute) {
+		// Adjust the total sum when updating the currentPowerLimitAbsolute value
+		// Subtract the old value and add the new value to the total
+		synchronized (InverterData.class) {
+			totalCurrentPowerLimitAbsolute -= this.currentPowerLimitAbsolute;
+			totalCurrentPowerLimitAbsolute += currentPowerLimitAbsolute;
+		}
 		this.currentPowerLimitAbsolute = currentPowerLimitAbsolute;
+		// this.lastUpdate = System.currentTimeMillis(); // Update the lastUpdate
+		// timestamp
+
+	}
+
+	/**
+	 * Static method to get the total sum of CurrentPowerLimitAbsolute across all
+	 * instances.
+	 * 
+	 * @return The total sum of CurrentPowerLimitAbsolute.
+	 */
+	public static int getTotalCurrentPowerLimitAbsolute() {
+		return totalCurrentPowerLimitAbsolute;
 	}
 
 	static List<InverterData> collectInverterData(Config config) {

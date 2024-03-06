@@ -52,7 +52,7 @@ import io.openems.edge.meter.api.MeterType;
 	MeterType type() default MeterType.PRODUCTION;
 	
 	@AttributeDefinition(name = "Enable Debug-Mode?", description = "Shall Debug-Mode be enabled?")
-	boolean debug() default false;
+	boolean debugMode() default false;
 
 	String webconsole_configurationFactory_nameHint() default "IO openDTU Device [{id}]";
 
