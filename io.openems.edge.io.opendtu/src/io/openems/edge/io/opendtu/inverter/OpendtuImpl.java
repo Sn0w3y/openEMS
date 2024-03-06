@@ -102,6 +102,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private MeterType meterType = null;
 	private SinglePhase phase = null;
 	private int numInverters = 0;
+	this.config = config;
 
 	private List<InverterData> validInverters = new ArrayList<>();
 	private Map<String, InverterData> inverterDataMap = new HashMap<>();
