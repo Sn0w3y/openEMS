@@ -97,12 +97,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	private final CalculateEnergyFromPower calculateActualEnergy = new CalculateEnergyFromPower(this,
 			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY);
-	private final CalculateEnergyFromPower calculateActualEnergyL1 = new CalculateEnergyFromPower(this,
-			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L1);
-	private final CalculateEnergyFromPower calculateActualEnergyL2 = new CalculateEnergyFromPower(this,
-			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L2);
-	private final CalculateEnergyFromPower calculateActualEnergyL3 = new CalculateEnergyFromPower(this,
-			ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY_L3);
 
 	private String baseUrl;
 	private String encodedAuth;
@@ -287,9 +281,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				powerLimitPerPhaseAbsolute = round(getAsFloat(inverterResponse, "limit_absolute"));
 				powerLimitPerPhaseRelative = round(getAsFloat(inverterResponse, "limit_relative"));
 
-				this.logDebug(this.log, "Current Limit for [" + serialNumber + "] :" + powerLimitPerPhaseAbsolute
-						+ "W / " + powerLimitPerPhaseRelative + "%");
-
 				// AC data
 				var acData = getAsJsonObject(inverterResponse, "AC");
 				var ac0Data = getAsJsonObject(acData, "0");
@@ -392,36 +383,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 			this.calculateActualEnergy.update(0);
 		}
 
-		var actualPowerL1 = this.getActivePowerL1().get();
-		if (actualPowerL1 == null) {
-			// Not available
-			this.calculateActualEnergyL1.update(null);
-		} else if (actualPowerL1 > 0) {
-			this.calculateActualEnergyL1.update(actualPowerL1);
-		} else {
-			this.calculateActualEnergyL1.update(0);
-		}
-
-		var actualPowerL2 = this.getActivePowerL2().get();
-		if (actualPowerL2 == null) {
-			// Not available
-			this.calculateActualEnergyL2.update(null);
-		} else if (actualPowerL2 > 0) {
-			this.calculateActualEnergyL2.update(actualPowerL2);
-		} else {
-			this.calculateActualEnergyL2.update(0);
-		}
-
-		var actualPowerL3 = this.getActivePowerL3().get();
-		if (actualPowerL3 == null) {
-			// Not available
-			this.calculateActualEnergyL3.update(null);
-		} else if (actualPowerL3 > 0) {
-			this.calculateActualEnergyL3.update(actualPowerL3);
-		} else {
-			this.calculateActualEnergyL3.update(0);
-		}
-
 	}
 
 	public void setActivePowerLimit(int powerLimit) throws OpenemsNamedException {
@@ -504,18 +465,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					int currentLimitRelative = inverterLimitInfo.get("limit_relative").getAsInt();
 					int currentLimitAbsolute = inverterLimitInfo.get("max_power").getAsInt();
 					String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
-
-					/*
-					 * 
-					 * <div class="col-sm-4" v-if="currentLimitList.max_power > 0"> <div
-					 * class="input-group"> <input type="text" class="form-control"
-					 * id="inputCurrentLimitAbsolute" aria-describedby="currentLimitTypeAbsolute"
-					 * v-model="currentLimitAbsolute" disabled /> <span class="input-group-text"
-					 * id="currentLimitTypeAbsolute">W</span> </div>
-					 * 
-					 * As we see there max_power is indeed the Absolute Limit even if it does not
-					 * get updated.
-					 */
 
 					// Retrieve inverter data based on its serial number and update its power limit
 					// and status
