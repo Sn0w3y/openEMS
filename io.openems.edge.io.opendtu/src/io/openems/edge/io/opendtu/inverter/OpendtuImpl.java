@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import io.openems.common.channel.AccessMode;
 import io.openems.common.exceptions.OpenemsError.OpenemsNamedException;
 import io.openems.edge.bridge.http.api.BridgeHttp;
 import io.openems.edge.bridge.http.api.BridgeHttpFactory;
@@ -42,6 +43,8 @@ import io.openems.edge.bridge.http.api.HttpMethod;
 import io.openems.edge.common.component.AbstractOpenemsComponent;
 import io.openems.edge.common.component.OpenemsComponent;
 import io.openems.edge.common.event.EdgeEventConstants;
+import io.openems.edge.common.modbusslave.ModbusSlaveNatureTable;
+import io.openems.edge.common.modbusslave.ModbusSlaveTable;
 import io.openems.edge.meter.api.ElectricityMeter;
 import io.openems.edge.meter.api.MeterType;
 import io.openems.edge.meter.api.SinglePhase;
@@ -69,6 +72,10 @@ import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
  * - We still need to implement a Channel to set the overall Power Limit right?
  * - Please have a close look to the changes i made - We still need to check the Code :D 
  * - We still need to drink more Bavarian Beer ;)
+ * 
+ * Done:
+ * 2024 03 05 Thomas: drank 2 Bitburger Stubbis
+ * 2024 03 06 Thomas: Added modbus slave feature
  */
 
 public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
@@ -80,8 +87,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private BridgeHttpFactory httpBridgeFactory;
 	private BridgeHttp httpBridge;
 
-	
-	//This Reference MF is needed.
+	// This Reference MF is needed.
 	@Reference(policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
 	private volatile Timedata timedata;
 
@@ -90,17 +96,16 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	private String baseUrl;
 	private String encodedAuth;
+	private Config config;
 	private int delay;
 
 	private Boolean isInitialPowerLimitSet = false;
 	private MeterType meterType = null;
 	private SinglePhase phase = null;
 	private int numInverters = 0;
-	this.config = config;
 
 	private List<InverterData> validInverters = new ArrayList<>();
 	private Map<String, InverterData> inverterDataMap = new HashMap<>();
-	private Config config;
 
 	public OpendtuImpl() {
 		super(//
@@ -115,6 +120,8 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	@Activate
 	private void activate(ComponentContext context, Config config) {
+		this.config = config;
+		
 		// Call the superclass activate method to initialize the component with the
 		// provided configurations.
 		super.activate(context, config.id(), config.alias(), config.enabled());
@@ -418,18 +425,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 					int currentLimitAbsolute = inverterLimitInfo.get("max_power").getAsInt();
 					String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
 
-					/*
-					 * 
-					 * <div class="col-sm-4" v-if="currentLimitList.max_power > 0"> <div
-					 * class="input-group"> <input type="text" class="form-control"
-					 * id="inputCurrentLimitAbsolute" aria-describedby="currentLimitTypeAbsolute"
-					 * v-model="currentLimitAbsolute" disabled /> <span class="input-group-text"
-					 * id="currentLimitTypeAbsolute">W</span> </div>
-					 * 
-					 * As we see there max_power is indeed the Absolute Limit even if it does not
-					 * get updated.
-					 */
-
 					// Retrieve inverter data based on its serial number and update its power limit
 					// and status
 					InverterData inverter = this.inverterDataMap.get(inverterSerialNumber);
@@ -467,4 +462,23 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	public SinglePhase getPhase() {
 		return this.phase;
 	}
+
+	/**
+	 * Constructs and returns a ModbusSlaveTable containing the combined Modbus
+	 * slave nature tables of multiple components.
+	 *
+	 * @param accessMode The AccessMode specifying the type of access allowed (READ,
+	 *                   WRITE) for the Modbus registers.
+	 * @return A new ModbusSlaveTable instance that combines the Modbus nature
+	 *         tables of the specified components under the given access mode.
+	 */
+	public ModbusSlaveTable getModbusSlaveTable(AccessMode accessMode) {
+		return new ModbusSlaveTable(//
+				OpenemsComponent.getModbusSlaveNatureTable(accessMode), //
+				ManagedSymmetricPvInverter.getModbusSlaveNatureTable(accessMode), //
+				ElectricityMeter.getModbusSlaveNatureTable(accessMode), //
+				ModbusSlaveNatureTable.of(Opendtu.class, accessMode, 100) //
+						.build());
+	}
+
 }
