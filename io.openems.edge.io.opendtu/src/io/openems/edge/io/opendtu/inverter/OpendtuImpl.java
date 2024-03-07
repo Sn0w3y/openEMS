@@ -364,18 +364,17 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	public void setActivePowerLimit(int powerLimit) throws OpenemsNamedException {
 		// Check directly if any inverter is pending or if both power limits are disabled (-1)
-		boolean anyInverterPending = false;
+		boolean skipProcessing = false; // Initialize a flag to determine whether to skip processing
 		for (InverterData inverterData : this.inverterDataMap.values()) {
-			if ("Pending".equals(inverterData.getlimitStatus())) {
-				this.logDebug(this.log,
-						"At least one inverter is still in 'Pending' state. Skipping setting power limits.");
-				anyInverterPending = true;
-				break; // Exit the loop early if any inverter is found to be pending
-			}
+		    if ("Pending".equals(inverterData.getlimitStatus())) {
+		        this.logDebug(this.log, "At least one inverter is still in 'Pending' state. Skipping setting power limits.");
+		        skipProcessing = true; // Set the flag to true if any inverter is pending
+		        break; // Exit the loop early if any inverter is found to be pending
+		    }
 		}
-
-		if (anyInverterPending || (this.config.absoluteLimit() == -1 && this.config.relativeLimit() == -1)) {
-			return; // Skip processing under these conditions aswell
+		// Check if we should skip processing based on inverter status or config limits
+		if (skipProcessing || (this.config.absoluteLimit() == -1 && this.config.relativeLimit() == -1)) {
+		    return; // Skip processing if the flag is true or both limits are -1
 		}
 
 		long now = System.currentTimeMillis();
@@ -419,18 +418,17 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	 */
 	private boolean calculateNewPowerLimit(int powerLimit, InverterData inverterData) {
 
-		int totalPower = InverterData.getTotalPower(); // Assume this is a static method.
+		int totalPower = InverterData.getTotalPower();
 		int totalLimitHardware = InverterData.getTotalLimitHardware();
 		int powerToDistribute = powerLimit - totalPower;
 		int maxLimit = inverterData.getlimitHardware();
-		int minLimit = 50; // Assume 50W as inverter limit
+		int minLimit = 50;
 		int newLimit = 0;
 
 		if (powerLimit < totalLimitHardware) {
 			double productionShare = (totalPower > 0) ? (double) inverterData.getPower() / totalPower : 0.0;
 
-			// Calculate the additional limit for this inverter based on its production
-			// share
+			// Calculate the additional limit for this inverter based on its production share
 			int additionalLimit = (int) Math.round(powerToDistribute * productionShare);
 
 			// Calculate the new limit for this inverter
