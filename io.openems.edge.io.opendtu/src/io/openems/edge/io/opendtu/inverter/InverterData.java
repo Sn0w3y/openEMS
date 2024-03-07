@@ -126,9 +126,15 @@ public class InverterData {
 		this.limitStatus = limitStatus;
 	}
 	
-	public int getlimitHardware() {
-		return this.limitHardware;
+	/**
+	 * Retrieves the hardware limit of the inverter.
+	 *
+	 * @return The hardware limit of the inverter, expressed as an integer.
+	 */
+	public int getLimitHardware() {
+	    return this.limitHardware;
 	}
+
 
     public void setLimitHardware(int limitHardware) {
         synchronized (InverterData.class) {
