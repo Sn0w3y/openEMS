@@ -5,7 +5,7 @@ import org.osgi.service.metatype.annotations.AttributeType;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import io.openems.edge.meter.api.MeterType;
 
-@ObjectClassDefinition(name = "Hoymiles Inverter", description = "Configures Hoymiles Inverter via openDTU.")
+@ObjectClassDefinition(name = "Hoymiles Inverter", description = "Configures Hoymiles Inverter via openDTU. If relative and absolute limits are -1 no limits are set via OpenEMS")
 @interface Config {
 
     @AttributeDefinition(name = "ID", description = "Component unique identifier")
@@ -36,10 +36,10 @@ import io.openems.edge.meter.api.MeterType;
     String ip();
 
     @AttributeDefinition(name = "Rel. Power Limit (%)", description = "Initial % power limit/inverter")
-    int relativePowerLimit() default -1;
+    int relativeLimit() default -1;
 
     @AttributeDefinition(name = "Abs. Power Limit (W)", description = "Initial power limit/inverter in Watts")
-    int absolutePowerLimit() default -1;
+    int absoluteLimit() default -1;
 
     @AttributeDefinition(name = "Threshold", description = "Power change threshold")
     int threshold() default 100;

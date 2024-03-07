@@ -14,13 +14,17 @@ public class InverterData {
 	private int frequency;
 
 	private int limitType; // 0 relative; 1 absolute
-	private int currentPowerLimitAbsolute;
-	private int currentPowerLimitRelative;
-	private String limitSetStatus;
-	private static int totalCurrentPowerLimitAbsolute = 0;
+	private int limitAbsolute;
+	private int limitAbsoluteWanted;
+	private int limitRelative;
+	private int limitHardware;
+	private String limitStatus;
+	private static int totalLimitAbssolute = 0;
 	private static int totalPower = 0;
-
+	private static int totalLimitHardware = 0;
 	private long lastUpdate;
+	
+	
 
 	public long getLastUpdate() {
 		return this.lastUpdate;
@@ -71,10 +75,6 @@ public class InverterData {
 		return this.maxPower;
 	}
 
-	public void setAbsoluteLimit(int power) {
-		this.maxPower = power;
-	}
-
 	public int getCurrent() {
 		return this.current;
 	}
@@ -118,35 +118,60 @@ public class InverterData {
 	 * @return A {@code String} representing the current status of the limit
 	 *         setting.
 	 */
-	public String getlimitSetStatus() {
-		return this.limitSetStatus;
+	public String getlimitStatus() {
+		return this.limitStatus;
 	}
 
-	public void setLimitSetStatus(String limitSetStatus) {
-		this.limitSetStatus = limitSetStatus;
+	public void setLimitStatus(String limitStatus) {
+		this.limitStatus = limitStatus;
+	}
+	
+	public int getlimitHardware() {
+		return this.limitHardware;
 	}
 
-	public int getCurrentPowerLimitRelative() {
-		return this.currentPowerLimitRelative;
+    public void setLimitHardware(int limitHardware) {
+        synchronized (InverterData.class) {
+            totalLimitHardware -= this.limitHardware;
+            totalLimitHardware += limitHardware;
+        }
+        this.limitHardware = limitHardware;
+	}	
+    
+    public static int getTotalLimitHardware() {
+    	return totalLimitHardware;
+    }
+	
+	
+	public int getLimitRelative() {
+		return this.limitRelative;
 	}
 
-	public void setPowerLimitRelative(int currentPowerLimitRelative) {
-		this.currentPowerLimitRelative = currentPowerLimitRelative;
+	public void setLimitRelative(int limitRelative) {
+		this.limitRelative = limitRelative;
+	}
+	
+	public int getLimitAbsoluteWanted() {
+		return this.limitAbsoluteWanted;
+	}
+	
+	public void setLimitAbsoluteWanted(int limitAbsolteWanted) {
+		this.limitAbsoluteWanted = limitAbsolteWanted;
 	}
 
-	public int getCurrentPowerLimitAbsolute() {
-		return this.currentPowerLimitAbsolute;
+	public int getLimitAbsolute() {
+		return this.limitAbsolute;
 	}
-
-	public void setLimitRelative(int currentPowerLimitAbsolute) {
-		// Adjust the total sum when updating the currentPowerLimitAbsolute value
-		// Subtract the old value and add the new value to the total
-		synchronized (InverterData.class) {
-			totalCurrentPowerLimitAbsolute -= this.currentPowerLimitAbsolute;
-			totalCurrentPowerLimitAbsolute += currentPowerLimitAbsolute;
-		}
-		this.currentPowerLimitAbsolute = currentPowerLimitAbsolute;
-		// this.lastUpdate = System.currentTimeMillis(); // Update the lastUpdate timestamp
+	
+    public void setLimitAbsolute(int limitAbsolute) {
+        // Adjust the total sum when updating the PowerLimitAbsolute value
+        // Subtract the old value and add the new value to the total
+        synchronized (InverterData.class) {
+            totalLimitAbssolute -= this.limitAbsolute;
+            totalLimitAbssolute += limitAbsolute;
+        }
+        this.limitAbsolute = limitAbsolute;
+        //this.lastUpdate = System.currentTimeMillis(); // Update the lastUpdate timestamp
 
 	}
 
@@ -156,8 +181,8 @@ public class InverterData {
 	 * 
 	 * @return The total sum of CurrentPowerLimitAbsolute.
 	 */
-	public static int getTotalCurrentPowerLimitAbsolute() {
-		return totalCurrentPowerLimitAbsolute;
+	public static int getTotalLimitAbsolute() {
+		return totalLimitAbssolute;
 	}
 
 	static List<InverterData> collectInverterData(Config config) {
