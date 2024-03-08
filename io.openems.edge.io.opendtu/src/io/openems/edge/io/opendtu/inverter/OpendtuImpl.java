@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 
 import io.openems.common.channel.AccessMode;
 import io.openems.common.exceptions.OpenemsError.OpenemsNamedException;
@@ -162,11 +163,8 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 			limitType = 1; // Relative limit type, either specified or default to 100%.
 		}
 
-		final Integer finalLimitType = limitType;
-		final Integer finalLimitValue = limitValue;
-
 		String payloadContent = String.format("{\"serial\":\"%s\", \"limit_type\":%d, \"limit_value\":%d}",
-				inverter.getSerialNumber(), finalLimitType, finalLimitValue);
+				inverter.getSerialNumber(), limitType, limitValue);
 
 		String formattedPayload = "data=" + URLEncoder.encode(payloadContent, StandardCharsets.UTF_8);
 
@@ -174,12 +172,19 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				BridgeHttp.DEFAULT_CONNECT_TIMEOUT, BridgeHttp.DEFAULT_READ_TIMEOUT, formattedPayload, properties);
 
 		this.httpBridge.request(endpoint)
-				.thenAccept(response -> this.handlePowerLimitResponse(inverter, finalLimitType, finalLimitValue))
+				.thenAccept(response -> this.handlePowerLimitResponse(inverter, limitType, limitValue))
 				.exceptionally(ex -> this.handlePowerLimitError(inverter, ex));
 	}
 
 	private void processLimitStatusUpdate(JsonElement responseJson, Throwable error) {
 		this._setSlaveCommunicationFailed(responseJson == null);
+
+		JsonObject inverterLimitInfo = null;
+		String inverterSerialNumber = null;
+		Integer limitRelative = null;
+		Integer limitAbsolute = null;
+		String limitAdjustmentStatus = null;
+		InverterData inverterData = null;
 
 		if (error != null) {
 			this.logDebug(this.log, error.getMessage());
@@ -190,14 +195,14 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 			var response = getAsJsonObject(responseJson);
 
 			for (Map.Entry<String, JsonElement> entry : response.entrySet()) {
-				String inverterSerialNumber = entry.getKey();
-				var inverterLimitInfo = getAsJsonObject(entry.getValue());
+				inverterSerialNumber = entry.getKey();
+				inverterLimitInfo = getAsJsonObject(entry.getValue());
 
-				Integer limitRelative = round(getAsFloat(inverterLimitInfo, "limit_relative"));
-				Integer limitAbsolute = round(getAsFloat(inverterLimitInfo, "max_power"));
-				String limitAdjustmentStatus = getAsString(inverterLimitInfo, "limit_set_status");
+				limitRelative = round(getAsFloat(inverterLimitInfo, "limit_relative"));
+				limitAbsolute = round(getAsFloat(inverterLimitInfo, "max_power"));
+				limitAdjustmentStatus = getAsString(inverterLimitInfo, "limit_set_status");
 
-				InverterData inverterData = this.inverterDataMap.get(inverterSerialNumber);
+				inverterData = this.inverterDataMap.get(inverterSerialNumber);
 				if (inverterData != null) {
 					inverterData.setLimitAbsolute(limitAbsolute);
 					inverterData.setLimitRelative(limitRelative);
@@ -252,6 +257,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		Integer powerLimitPerPhaseAbsolute = null;
 		Integer powerLimitPerPhaseRelative = null;
 		Integer limitHardware = null;
+		InverterData inverterData = null;
 
 		if (error != null) {
 			this.logDebug(this.log, error.getMessage());
@@ -296,7 +302,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 			}
 		}
 
-		InverterData inverterData = this.inverterDataMap.get(serialNumber);
+		inverterData = this.inverterDataMap.get(serialNumber);
 		inverterData.setPower(power);
 		inverterData.setCurrent(current);
 		inverterData.setVoltage(voltage);
@@ -328,8 +334,8 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 			break;
 		}
 
-		this._setFrequency(frequency); // We assume frequency to be equal on all phases/inverters
-		this._setActivePower(totalPower); // ActivePower over the whole cluster
+		this._setFrequency(frequency);
+		this._setActivePower(totalPower);
 		this._setSlaveCommunicationFailed(false);
 	}
 
@@ -396,13 +402,12 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	}
 
 	private boolean calculateNewPowerLimit(int powerLimit, InverterData inverterData) {
-		// Initializing variables as close as possible to their usage
 		var totalPower = InverterData.getTotalPower();
 		var totalLimitHardware = InverterData.getTotalLimitHardware();
 		var powerToDistribute = powerLimit - totalPower;
 		var maxLimit = inverterData.getLimitHardware();
-		final Integer min_limit = 50; // Prefer using final for constants
-		var newLimit = 0; // Initialized at declaration
+		final Integer min_limit = 50;
+		var newLimit = 0;
 
 		// Calculation based on conditions
 		if (powerLimit < totalLimitHardware && totalPower > 0) {
@@ -447,35 +452,9 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 	}
 
-	@Override
-	public Timedata getTimedata() {
-		return this.timedata;
-	}
-
-	@Override
-	public MeterType getMeterType() {
-		return this.meterType;
-	}
-
-	@Override
-	public SinglePhase getPhase() {
-		return this.phase;
-	}
-
-	@Override
-	protected void logDebug(Logger log, String message) {
-		if (this.config.debugMode()) {
-			this.logInfo(this.log, message);
-		}
-	}
-
-	/**
-	 * Calculate the Energy values from ActivePower.
-	 */
 	private void calculateEnergy() {
 		var actualPower = this.getActivePower().get();
 		if (actualPower == null) {
-			// Not available
 			this.calculateActualEnergy.update(null);
 		} else if (actualPower > 0) {
 			this.calculateActualEnergy.update(actualPower);
@@ -485,7 +464,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 		var actualPowerL1 = this.getActivePowerL1().get();
 		if (actualPowerL1 == null) {
-			// Not available
 			this.calculateActualEnergyL1.update(null);
 		} else if (actualPowerL1 > 0) {
 			this.calculateActualEnergyL1.update(actualPowerL1);
@@ -495,7 +473,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 		var actualPowerL2 = this.getActivePowerL2().get();
 		if (actualPowerL2 == null) {
-			// Not available
 			this.calculateActualEnergyL2.update(null);
 		} else if (actualPowerL2 > 0) {
 			this.calculateActualEnergyL2.update(actualPowerL2);
@@ -505,7 +482,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 
 		var actualPowerL3 = this.getActivePowerL3().get();
 		if (actualPowerL3 == null) {
-			// Not available
 			this.calculateActualEnergyL3.update(null);
 		} else if (actualPowerL3 > 0) {
 			this.calculateActualEnergyL3.update(actualPowerL3);
@@ -531,4 +507,27 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				ModbusSlaveNatureTable.of(Opendtu.class, accessMode, 100) //
 						.build());
 	}
+
+	@Override
+	public Timedata getTimedata() {
+		return this.timedata;
+	}
+
+	@Override
+	public MeterType getMeterType() {
+		return this.meterType;
+	}
+
+	@Override
+	public SinglePhase getPhase() {
+		return this.phase;
+	}
+
+	@Override
+	protected void logDebug(Logger log, String message) {
+		if (this.config.debugMode()) {
+			this.logInfo(this.log, message);
+		}
+	}
+
 }
