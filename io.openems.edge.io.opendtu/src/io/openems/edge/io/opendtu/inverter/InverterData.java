@@ -118,7 +118,7 @@ public class InverterData {
 	 * @return A {@code String} representing the current status of the limit
 	 *         setting.
 	 */
-	public String getlimitStatus() {
+	public String getLimitStatus() {
 		return this.limitStatus;
 	}
 

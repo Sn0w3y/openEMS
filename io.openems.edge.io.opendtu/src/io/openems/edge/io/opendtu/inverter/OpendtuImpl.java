@@ -11,9 +11,9 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import org.osgi.service.component.ComponentContext;
@@ -94,7 +94,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private boolean setLimitsAllInverters = true;
 
 	private List<InverterData> validInverters = new ArrayList<>();
-	private Map<String, InverterData> inverterDataMap = new HashMap<>();
+	private Map<String, InverterData> inverterDataMap = new ConcurrentHashMap<>();
 
 	public OpendtuImpl() {
 		super(OpenemsComponent.ChannelId.values(), //
@@ -114,10 +114,11 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		this.baseUrl = "http://" + config.ip();
 		this.httpBridge = this.httpBridgeFactory.get();
 		this.meterType = config.type();
-		this.validInverters = InverterData.collectInverterData(config);
 		this.subscribeToLimitStatusUpdates();
-		this.subscribeToInverterLiveData();
 		this.initializePowerLimits();
+		this.subscribeToInverterLiveData();
+		this.validInverters = InverterData.collectInverterData(config);
+
 	}
 
 	private void processHttpResult(JsonElement result, Throwable error) {
@@ -147,6 +148,13 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				var invertersArray = getAsJsonArray(response, "inverters");
 				var inverterResponse = getAsJsonObject(invertersArray.get(0));
 				serialNumber = getAsString(inverterResponse, "serial");
+				
+				this.logDebug(this.log, "Attempting to retrieve InverterData for serial number: " + serialNumber);
+				InverterData inverterData = this.inverterDataMap.get(serialNumber);
+				if (inverterData == null) {
+				    this.logError(this.log, "InverterData is null for serial number: " + serialNumber);
+				    return;
+				}
 
 				powerLimitPerPhaseAbsolute = round(getAsFloat(inverterResponse, "limit_absolute"));
 				powerLimitPerPhaseRelative = round(getAsFloat(inverterResponse, "limit_relative"));
@@ -181,6 +189,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		}
 
 		InverterData inverterData = this.inverterDataMap.get(serialNumber);
+			this.logError(this.log, "InverterData is null");
 		inverterData.setPower(power);
 		inverterData.setCurrent(current);
 		inverterData.setVoltage(voltage);
