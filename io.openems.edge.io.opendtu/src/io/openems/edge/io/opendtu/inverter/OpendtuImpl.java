@@ -6,14 +6,16 @@ import static io.openems.common.utils.JsonUtils.getAsFloat;
 import static io.openems.common.utils.JsonUtils.getAsString;
 import static io.openems.common.utils.JsonUtils.getAsInt;
 import static java.lang.Math.round;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import org.osgi.service.component.ComponentContext;
@@ -27,7 +29,6 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.osgi.service.event.Event;
 import org.osgi.service.event.EventHandler;
-import org.osgi.service.event.propertytypes.EventTopics;
 import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +42,6 @@ import io.openems.edge.bridge.http.api.BridgeHttpFactory;
 import io.openems.edge.bridge.http.api.HttpMethod;
 import io.openems.edge.common.component.AbstractOpenemsComponent;
 import io.openems.edge.common.component.OpenemsComponent;
-import io.openems.edge.common.event.EdgeEventConstants;
 import io.openems.edge.common.modbusslave.ModbusSlaveNatureTable;
 import io.openems.edge.common.modbusslave.ModbusSlaveTable;
 import io.openems.edge.meter.api.ElectricityMeter;
@@ -61,29 +61,6 @@ import io.openems.edge.timedata.api.utils.CalculateEnergyFromPower;
 				"type=PRODUCTION" //
 		})
 
-@EventTopics({ //
-		EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE, //
-})
-
-/*
- * ToDo:
- * 
- * - Ain't it a good idea to define getters/setters in Interface? - Leave Limit
- * untouched if both are set to -1. I think that not every user wants to set
- * limits. like it is handled for initial limits - Power limit not applied if
- * changed in config while running ?? - Power limit does not switch back to
- * initial value if limiting controller is disabled - We still need to drink
- * more Bavarian Beer ;)
- * 
- * Done: 2024 03 05 Thomas: drank 2 Bitburger Stubbis 2024 03 06 Thomas: Added
- * modbus slave feature 2024 03 06 Thomas: unified Debug-Messages 2024 03 06
- * Hannes: Refactored some things :) 2024 03 07 Thomas: set up new field
- * AbsoluteWanted in InvertedData to hold value for calculated individual limit
- * 2024 03 07 Thomas: InverterData: Refactoring, cleaning 2024 03 07 Thomas:
- * corrected calculateNewPowerLimit 2024 03 07 Thomas: InverterData: Added
- * calculated field limitHardware
- */
-
 public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, ElectricityMeter, OpenemsComponent,
 		EventHandler, TimedataProvider, ManagedSymmetricPvInverter {
 
@@ -93,8 +70,11 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private BridgeHttpFactory httpBridgeFactory;
 	private BridgeHttp httpBridge;
 
-	// This Reference MF is needed.
-	@Reference(policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY, cardinality = ReferenceCardinality.OPTIONAL)
+	@Reference(policy = ReferencePolicy.DYNAMIC, //
+			policyOption = ReferencePolicyOption.GREEDY, //
+			cardinality = ReferenceCardinality.OPTIONAL //
+	)
+
 	private volatile Timedata timedata;
 
 	private final CalculateEnergyFromPower calculateActualEnergy = new CalculateEnergyFromPower(this,
@@ -113,11 +93,10 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	private Boolean isInitialPowerLimitSet = false;
 	private MeterType meterType = null;
 	private SinglePhase phase = null;
-	// private int numInverters = 0;
 	private boolean setLimitsAllInverters = true;
 
 	private List<InverterData> validInverters = new ArrayList<>();
-	private Map<String, InverterData> inverterDataMap = new HashMap<>();
+	private Map<String, InverterData> inverterDataMap = new ConcurrentHashMap<>();
 
 	public OpendtuImpl() {
 		super(//
@@ -175,7 +154,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		if (config.absoluteLimit() == -1 && config.relativeLimit() == -1) {
 			return;
 		}
-		// Determine if setting absolute or relative power limit.
 		if (config.absoluteLimit() != -1) {
 			limitValue = config.absoluteLimit();
 			limitType = 0; // Absolute limit type.
@@ -200,45 +178,44 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				.exceptionally(ex -> this.handlePowerLimitError(inverter, ex));
 	}
 
-	private void processLimitStatusUpdate(JsonElement responseJson, Throwable OpenemsNamedException) {
+	private void processLimitStatusUpdate(JsonElement responseJson, Throwable error) {
 		this._setSlaveCommunicationFailed(responseJson == null);
 
-		Integer limitRelative = null;
-		Integer limitAbsolute = null;
-		String limitAdjustmentStatus = null;
-		String inverterSerialNumber = null;
-
-		if (OpenemsNamedException != null) {
-			this.logDebug(this.log, OpenemsNamedException.getMessage());
-		} else {
-			try {
-				var response = getAsJsonObject(responseJson);
-
-				for (Map.Entry<String, JsonElement> entry : response.entrySet()) {
-					inverterSerialNumber = entry.getKey();
-					var inverterLimitInfo = getAsJsonObject(entry.getValue());
-
-					limitRelative = round(getAsFloat(inverterLimitInfo, "limit_relative"));
-					limitAbsolute = round(getAsFloat(inverterLimitInfo, "max_power"));
-					limitAdjustmentStatus = getAsString(inverterLimitInfo, "limit_set_status");
-
-				}
-				if (this.setLimitsAllInverters) {
-					this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(InverterData.getTotalLimitAbsolute());
-				}
-			} catch (OpenemsNamedException e) {
-				this.logDebug(this.log, e.getMessage());
-				this._setSlaveCommunicationFailed(true);
-				this.setLimitsAllInverters = false;
-			}
+		if (error != null) {
+			this.logDebug(this.log, error.getMessage());
+			return;
 		}
 
-		InverterData inverter = this.inverterDataMap.get(inverterSerialNumber);
-		inverter.setLimitAbsolute(limitAbsolute);
-		inverter.setLimitRelative(limitRelative);
-		inverter.setLimitStatus(limitAdjustmentStatus);
-		this.logDebug(this.log, "Limit Status: " + limitAdjustmentStatus + " for Inverter: " + inverterSerialNumber);
+		try {
+			var response = getAsJsonObject(responseJson);
 
+			for (Map.Entry<String, JsonElement> entry : response.entrySet()) {
+				String inverterSerialNumber = entry.getKey();
+				var inverterLimitInfo = getAsJsonObject(entry.getValue());
+
+				Integer limitRelative = round(getAsFloat(inverterLimitInfo, "limit_relative"));
+				Integer limitAbsolute = round(getAsFloat(inverterLimitInfo, "max_power"));
+				String limitAdjustmentStatus = getAsString(inverterLimitInfo, "limit_set_status");
+
+				InverterData inverterData = this.inverterDataMap.get(inverterSerialNumber);
+				if (inverterData != null) {
+					inverterData.setLimitAbsolute(limitAbsolute);
+					inverterData.setLimitRelative(limitRelative);
+					inverterData.setLimitStatus(limitAdjustmentStatus);
+					this.logDebug(this.log,
+							"Limit Status: " + limitAdjustmentStatus + " for Inverter: " + inverterSerialNumber);
+				} else {
+					this.logError(this.log, "Inverter data not found for serial number: " + inverterSerialNumber);
+				}
+			}
+			if (this.setLimitsAllInverters) {
+				this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(InverterData.getTotalLimitAbsolute());
+			}
+		} catch (OpenemsNamedException e) {
+			this.logDebug(this.log, e.getMessage());
+			this._setSlaveCommunicationFailed(true);
+			this.setLimitsAllInverters = false;
+		}
 	}
 
 	private void handlePowerLimitResponse(InverterData inverter, int limitType, int limitValue) {
@@ -256,12 +233,9 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	}
 
 	private Void handlePowerLimitError(InverterData inverter, Throwable ex) {
-		// Log the error
 		this.logDebug(this.log,
 				"Error setting power limit for inverter [" + inverter.getSerialNumber() + "] " + ex.getMessage());
-		// Indicate a fault in setting power limit
 		this.channel(Opendtu.ChannelId.POWER_LIMIT_FAULT).setNextValue(true);
-		// This method must return null because it's used as a lambda in `exceptionally`
 		return null;
 	}
 
@@ -278,6 +252,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		Integer powerLimitPerPhaseAbsolute = null;
 		Integer powerLimitPerPhaseRelative = null;
 		Integer limitHardware = null;
+		String phase = null;
 
 		if (error != null) {
 			this.logDebug(this.log, error.getMessage());
@@ -289,21 +264,15 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				var totalPowerObject = getAsJsonObject(totalObject, "Power");
 				totalPower = round(getAsFloat(totalPowerObject, "v"));
 
-				// Processing inverters
 				var invertersArray = getAsJsonArray(response, "inverters");
 				var inverterResponse = getAsJsonObject(invertersArray.get(0));
 				serialNumber = getAsString(inverterResponse, "serial");
 
-				// Limit information
 				powerLimitPerPhaseAbsolute = round(getAsFloat(inverterResponse, "limit_absolute"));
 				powerLimitPerPhaseRelative = round(getAsFloat(inverterResponse, "limit_relative"));
 
-				limitHardware = Math.round(powerLimitPerPhaseAbsolute * (100 / powerLimitPerPhaseRelative)); // Calculate
+				limitHardware = round(powerLimitPerPhaseAbsolute * (100 / powerLimitPerPhaseRelative)); // Calculate
 
-				this.logDebug(this.log, "Current Limit for [" + serialNumber + "] :" + powerLimitPerPhaseAbsolute
-						+ "W / " + powerLimitPerPhaseRelative + "%");
-
-				// AC data
 				var acData = getAsJsonObject(inverterResponse, "AC");
 				var ac0Data = getAsJsonObject(acData, "0");
 
@@ -323,7 +292,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 				frequency = round(getAsInt(frequencyObj, "v") * 1000);
 
 			} catch (OpenemsNamedException e) {
-				this.logError(this.log, "Error processing HTTP result: " + e.getMessage());
+				this.logDebug(this.log, e.getMessage());
 				this._setSlaveCommunicationFailed(true);
 			}
 		}
@@ -336,7 +305,8 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		inverterData.setLimitAbsolute(powerLimitPerPhaseAbsolute);
 		inverterData.setLimitRelative(powerLimitPerPhaseRelative);
 		inverterData.setLimitHardware(limitHardware);
-		String phase = inverterData.getPhase();
+
+		phase = inverterData.getPhase();
 
 		switch (phase) {
 		case "L1":
@@ -384,11 +354,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		if (!this.isEnabled()) {
 			return;
 		}
-
-		switch (event.getTopic()) {
-		case EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE:
-			break;
-		}
 	}
 
 	public void setActivePowerLimit(int powerLimit) throws OpenemsNamedException {
@@ -432,36 +397,29 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	}
 
 	private boolean calculateNewPowerLimit(int powerLimit, InverterData inverterData) {
+		// Initializing variables as close as possible to their usage
+		var totalPower = InverterData.getTotalPower();
+		var totalLimitHardware = InverterData.getTotalLimitHardware();
+		var powerToDistribute = powerLimit - totalPower;
+		var maxLimit = inverterData.getLimitHardware();
+		final Integer min_limit = 50; // Prefer using final for constants
+		var newLimit = 0; // Initialized at declaration
 
-		int totalPower = InverterData.getTotalPower();
-		int totalLimitHardware = InverterData.getTotalLimitHardware();
-		int powerToDistribute = powerLimit - totalPower;
-		int maxLimit = inverterData.getLimitHardware();
-		int minLimit = 50;
-		int newLimit = 0;
-
-		if (powerLimit < totalLimitHardware) {
-			double productionShare = (totalPower > 0) ? (double) inverterData.getPower() / totalPower : 0.0;
-			int additionalLimit = (int) Math.round(powerToDistribute * productionShare);
-
-			newLimit = inverterData.getPower() + additionalLimit;
-			newLimit = Math.min(maxLimit, Math.max(minLimit, newLimit));
-			this.logDebug(this.log,
-					"Calculate \n Total Power: " + totalPower + "\n Power Limit: " + powerLimit + "\n Hardware Limit: "
-							+ maxLimit + "\n Power to Distribute: " + powerToDistribute + "\n Production Share: "
-							+ productionShare + "\n New Limit: " + newLimit);
+		// Calculation based on conditions
+		if (powerLimit < totalLimitHardware && totalPower > 0) {
+			var productionShare = (double) inverterData.getPower() / totalPower;
+			var additionalLimit = (int) round(powerToDistribute * productionShare);
+			newLimit = min(maxLimit, max(min_limit, inverterData.getPower() + additionalLimit));
 		} else {
 			newLimit = maxLimit;
-			this.logDebug(this.log,
-					"Calculate \n Total Power: " + totalPower + "\n Power Limit: " + powerLimit + "\n Hardware Limit: "
-							+ maxLimit + "\n Power to Distribute: " + powerToDistribute + "\n New Limit: " + newLimit);
 		}
-		if (newLimit == 0) {
-			return false;
-		} else {
+
+		// Decision based on calculated value
+		if (newLimit != 0) {
 			inverterData.setLimitAbsoluteWanted(newLimit);
-			return true;
+			return true; // True when a new limit is set
 		}
+		return false; // False when no new limit is set or new limit is 0
 	}
 
 	private void updateInverterLimit(String serialNumber, InverterData inverterData, int newPowerLimit, long now) {
