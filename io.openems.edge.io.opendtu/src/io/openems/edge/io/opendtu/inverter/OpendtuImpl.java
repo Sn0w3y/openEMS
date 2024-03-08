@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 
 import io.openems.common.channel.AccessMode;
 import io.openems.common.exceptions.OpenemsError.OpenemsNamedException;
@@ -202,36 +201,45 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 	}
 
 	private void processLimitStatusUpdate(JsonElement responseJson, Throwable OpenemsNamedException) {
+		this._setSlaveCommunicationFailed(responseJson == null);
 
-		JsonObject responseObj = responseJson.getAsJsonObject();
+		Integer limitRelative = null;
+		Integer limitAbsolute = null;
+		String limitAdjustmentStatus = null;
+		String inverterSerialNumber = null;
 
-		for (Map.Entry<String, JsonElement> entry : responseObj.entrySet()) {
-			String inverterSerialNumber = entry.getKey();
-			JsonObject inverterLimitInfo = entry.getValue().getAsJsonObject();
+		if (OpenemsNamedException != null) {
+			this.logDebug(this.log, OpenemsNamedException.getMessage());
+		} else {
+			try {
+				var response = getAsJsonObject(responseJson);
 
-			Integer limitRelative = inverterLimitInfo.get("limit_relative").getAsInt();
-			Integer limitAbsolute = inverterLimitInfo.get("max_power").getAsInt();
-			String limitAdjustmentStatus = inverterLimitInfo.get("limit_set_status").getAsString();
+				for (Map.Entry<String, JsonElement> entry : response.entrySet()) {
+					inverterSerialNumber = entry.getKey();
+					var inverterLimitInfo = getAsJsonObject(entry.getValue());
 
-			InverterData inverter = this.inverterDataMap.get(inverterSerialNumber);
-			if (inverter != null) {
+					limitRelative = round(getAsFloat(inverterLimitInfo, "limit_relative"));
+					limitAbsolute = round(getAsFloat(inverterLimitInfo, "max_power"));
+					limitAdjustmentStatus = getAsString(inverterLimitInfo, "limit_set_status");
 
-				inverter.setLimitAbsolute(limitAbsolute);
-				inverter.setLimitRelative(limitRelative);
-				inverter.setLimitStatus(limitAdjustmentStatus);
-				this.logDebug(this.log,
-						"Limit Status: " + limitAdjustmentStatus + " for Inverter: " + inverterSerialNumber);
-			} else {
-				this.logWarn(this.log, "Inverter data not found for serial number [" + inverterSerialNumber + "].");
+				}
+				if (this.setLimitsAllInverters) {
+					this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(InverterData.getTotalLimitAbsolute());
+				}
+			} catch (OpenemsNamedException e) {
+				this.logDebug(this.log, e.getMessage());
+				this._setSlaveCommunicationFailed(true);
 				this.setLimitsAllInverters = false;
 			}
 		}
-		if (this.setLimitsAllInverters == true) { // Only set limit if there aren´t errors
-			this.channel(Opendtu.ChannelId.ABSOLUTE_LIMIT).setNextValue(InverterData.getTotalLimitAbsolute());
-		}
-	}
 
-	;
+		InverterData inverter = this.inverterDataMap.get(inverterSerialNumber);
+		inverter.setLimitAbsolute(limitAbsolute);
+		inverter.setLimitRelative(limitRelative);
+		inverter.setLimitStatus(limitAdjustmentStatus);
+		this.logDebug(this.log, "Limit Status: " + limitAdjustmentStatus + " for Inverter: " + inverterSerialNumber);
+
+	}
 
 	private void handlePowerLimitResponse(InverterData inverter, int limitType, int limitValue) {
 		this.logDebug(this.log, "Power limit successfully set for inverter [" + inverter.getSerialNumber()
