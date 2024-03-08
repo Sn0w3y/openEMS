@@ -252,7 +252,6 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		Integer powerLimitPerPhaseAbsolute = null;
 		Integer powerLimitPerPhaseRelative = null;
 		Integer limitHardware = null;
-		String phase = null;
 
 		if (error != null) {
 			this.logDebug(this.log, error.getMessage());
@@ -306,7 +305,7 @@ public class OpendtuImpl extends AbstractOpenemsComponent implements Opendtu, El
 		inverterData.setLimitRelative(powerLimitPerPhaseRelative);
 		inverterData.setLimitHardware(limitHardware);
 
-		phase = inverterData.getPhase();
+		String phase = inverterData.getPhase();
 
 		switch (phase) {
 		case "L1":
