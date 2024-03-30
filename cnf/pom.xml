@@ -178,6 +178,11 @@
 			<version>1.9.26</version>
 		</dependency>
 		<dependency>
+			<groupId>org.openmuc</groupId>
+			<artifactId>jsml</artifactId>
+			<version>1.1.2</version>
+		</dependency>
+		<dependency>
 			<!-- Apache Felix EventAdmin -->
 			<!-- Changelog: https://github.com/apache/felix-dev/blob/master/eventadmin/impl/changelog.txt -->
 			<groupId>org.apache.felix</groupId>
