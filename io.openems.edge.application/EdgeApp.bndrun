@@ -124,7 +124,6 @@
 	bnd.identity;id='io.openems.edge.evcs.ocpp.common',\
 	bnd.identity;id='io.openems.edge.evcs.ocpp.ies.keywatt.singleccs',\
 	bnd.identity;id='io.openems.edge.evcs.ocpp.server',\
-	bnd.identity;id='io.openems.edge.evcs.spelsberg',\
 	bnd.identity;id='io.openems.edge.evcs.webasto.next',\
 	bnd.identity;id='io.openems.edge.evcs.webasto.unite',\
 	bnd.identity;id='io.openems.edge.fenecon.dess',\
@@ -132,7 +131,6 @@
 	bnd.identity;id='io.openems.edge.fenecon.pro',\
 	bnd.identity;id='io.openems.edge.goodwe',\
 	bnd.identity;id='io.openems.edge.io.filipowski',\
-	bnd.identity;id='io.openems.edge.io.gpio',\
 	bnd.identity;id='io.openems.edge.io.kmtronic',\
 	bnd.identity;id='io.openems.edge.io.offgridswitch',\
 	bnd.identity;id='io.openems.edge.io.revpi',\
@@ -151,7 +149,6 @@
 	bnd.identity;id='io.openems.edge.meter.discovergy',\
 	bnd.identity;id='io.openems.edge.meter.janitza',\
 	bnd.identity;id='io.openems.edge.meter.kdk',\
-	bnd.identity;id='io.openems.edge.meter.microcare.sdm630',\
 	bnd.identity;id='io.openems.edge.meter.phoenixcontact',\
 	bnd.identity;id='io.openems.edge.meter.plexlog',\
 	bnd.identity;id='io.openems.edge.meter.pqplus',\
@@ -185,7 +182,18 @@
 	bnd.identity;id='io.openems.edge.timeofusetariff.corrently',\
 	bnd.identity;id='io.openems.edge.timeofusetariff.entsoe',\
 	bnd.identity;id='io.openems.edge.timeofusetariff.tibber',\
-
+	bnd.identity;id='io.openems.edge.ess.samsung',\
+	bnd.identity;id='io.openems.edge.pvinverter.sungrow',\
+	bnd.identity;id='io.openems.edge.ess.sungrow',\
+	bnd.identity;id='io.openems.edge.evcs.evtec',\
+	bnd.identity;id='io.openems.edge.io.opendtu',\
+	bnd.identity;id='io.openems.edge.themometer.ta',\
+	bnd.identity;id='io.openems.edge.thermometer.esp32',\
+	bnd.identity;id='io.openems.edge.ess.fronius',\
+	bnd.identity;id='io.openems.edge.meter.eastron',\
+	bnd.identity;id='io.openems.edge.meter.entes',\
+	bnd.identity;id='io.openems.edge.evcs.spelsberg',\
+	bnd.identity;id='io.openems.edge.meter.tibber'
 -runbundles: \
 	Java-WebSocket;version='[1.5.4,1.5.5)',\
 	bcpkix;version='[1.70.0,1.70.1)',\
@@ -194,7 +202,7 @@
 	com.fazecast.jSerialComm;version='[2.10.4,2.10.5)',\
 	com.ghgande.j2mod;version='[3.2.1,3.2.2)',\
 	com.google.gson;version='[2.10.1,2.10.2)',\
-	com.google.guava;version='[33.1.0,33.1.1)',\
+	com.google.guava;version='[33.0.0,33.0.1)',\
 	com.google.guava.failureaccess;version='[1.0.2,1.0.3)',\
 	com.squareup.okio;version='[3.9.0,3.9.1)',\
 	com.sun.jna;version='[5.14.0,5.14.1)',\
@@ -291,7 +299,6 @@
 	io.openems.edge.evcs.ocpp.common;version=snapshot,\
 	io.openems.edge.evcs.ocpp.ies.keywatt.singleccs;version=snapshot,\
 	io.openems.edge.evcs.ocpp.server;version=snapshot,\
-	io.openems.edge.evcs.spelsberg;version=snapshot,\
 	io.openems.edge.evcs.webasto.next;version=snapshot,\
 	io.openems.edge.evcs.webasto.unite;version=snapshot,\
 	io.openems.edge.fenecon.dess;version=snapshot,\
@@ -300,7 +307,6 @@
 	io.openems.edge.goodwe;version=snapshot,\
 	io.openems.edge.io.api;version=snapshot,\
 	io.openems.edge.io.filipowski;version=snapshot,\
-	io.openems.edge.io.gpio;version=snapshot,\
 	io.openems.edge.io.kmtronic;version=snapshot,\
 	io.openems.edge.io.offgridswitch;version=snapshot,\
 	io.openems.edge.io.revpi;version=snapshot,\
@@ -320,7 +326,6 @@
 	io.openems.edge.meter.discovergy;version=snapshot,\
 	io.openems.edge.meter.janitza;version=snapshot,\
 	io.openems.edge.meter.kdk;version=snapshot,\
-	io.openems.edge.meter.microcare.sdm630;version=snapshot,\
 	io.openems.edge.meter.phoenixcontact;version=snapshot,\
 	io.openems.edge.meter.plexlog;version=snapshot,\
 	io.openems.edge.meter.pqplus;version=snapshot,\
@@ -329,7 +334,6 @@
 	io.openems.edge.meter.sma.shm20;version=snapshot,\
 	io.openems.edge.meter.socomec;version=snapshot,\
 	io.openems.edge.meter.sunspec;version=snapshot,\
-	io.openems.edge.meter.tibber;version=snapshot,\
 	io.openems.edge.meter.virtual;version=snapshot,\
 	io.openems.edge.meter.weidmueller;version=snapshot,\
 	io.openems.edge.meter.ziehl;version=snapshot,\
@@ -413,7 +417,20 @@
 	org.osgi.util.function;version='[1.2.0,1.2.1)',\
 	org.osgi.util.promise;version='[1.3.0,1.3.1)',\
 	org.owasp.encoder;version='[1.2.3,1.2.4)',\
-	org.openmuc.jsml;version='[1.1.2,1.1.3)',\
-	org.apache.commons.codec;version='[1.11.0,1.11.1)',\
 	reactive-streams;version='[1.0.4,1.0.5)',\
-	rrd4j;version='[3.9.0,3.9.1)'
+	rrd4j;version='[3.9.0,3.9.1)',\
+	io.openems.edge.ess.samsung;version=snapshot,\
+	io.openems.edge.ess.sungrow;version=snapshot,\
+	io.openems.edge.evcs.evtec;version=snapshot,\
+	io.openems.edge.io.opendtu;version=snapshot,\
+	io.openems.edge.pvinverter.sungrow;version=snapshot,\
+	io.openems.edge.themometer.ta;version=snapshot,\
+	io.openems.edge.thermometer.esp32;version=snapshot,\
+	io.openems.edge.ess.fronius;version=snapshot,\
+	io.openems.edge.meter.eastron;version=snapshot,\
+	io.openems.edge.meter.entes;version=snapshot,\
+	io.openems.edge.evcs.spelsberg;version=snapshot,\
+	io.openems.edge.meter.tibber;version=snapshot,\
+	org.openmuc.jsml;version='[1.1.2,1.1.3)',\
+	org.apache.commons.codec;version='[1.11.0,1.11.1)'
+  
