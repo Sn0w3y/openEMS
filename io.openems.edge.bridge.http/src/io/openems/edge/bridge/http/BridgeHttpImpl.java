@@ -182,6 +182,20 @@ public class BridgeHttpImpl implements BridgeHttp {
 		return future;
 	}
 
+	@Override
+	public CompletableFuture<byte[]> requestRaw(Endpoint endpoint) {
+	    final CompletableFuture<byte[]> future = new CompletableFuture<>();
+	    this.pool.execute(() -> {
+	        try {
+	            final byte[] result = this.urlFetcher.fetchEndpointRaw(endpoint);
+	            future.complete(result);
+	        } catch (Exception e) {
+	            future.completeExceptionally(e);
+	        }
+	    });
+	    return future;
+	}
+
 	private void handleEvent(Event event) {
 		switch (event.getTopic()) {
 		// TODO: Execute before TOPIC_CYCLE_BEFORE_PROCESS_IMAGE, like modbus bridge
