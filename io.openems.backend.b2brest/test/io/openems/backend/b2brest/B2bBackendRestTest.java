@@ -41,34 +41,34 @@ class B2bBackendRestTest {
 			}
 		};
 
-		service = new Backend2BackendRest();
+		this.service = new Backend2BackendRest();
 
 		Method activateMethod = Backend2BackendRest.class.getDeclaredMethod("activate", Config.class);
 		activateMethod.setAccessible(true);
-		activateMethod.invoke(service, config);
+		activateMethod.invoke(this.service, config);
 
-		client = new HttpClient();
-		client.start();
+		this.client = new HttpClient();
+		this.client.start();
 	}
 
 	@AfterEach
 	void tearDown() throws Exception {
 		Method deactivateMethod = Backend2BackendRest.class.getDeclaredMethod("deactivate");
 		deactivateMethod.setAccessible(true);
-		deactivateMethod.invoke(service);
+		deactivateMethod.invoke(this.service);
 
-		client.stop();
+		this.client.stop();
 	}
 
 	@Test
 	void testActivateDeactivate() {
-		assertNotNull(service, "Service should be activated.");
+		assertNotNull(this.service, "Service should be activated.");
 	}
 
 	@Test
 	void testJsonRpcRequestHandling() throws Exception {
 		String jsonRpcRequest = "{\"jsonrpc\":\"2.0\",\"method\":\"test\",\"params\":{\"sample\":true},\"id\":1}";
-		ContentResponse response = client.newRequest("http://localhost:8080/jsonrpc").method(HttpMethod.POST)
+		ContentResponse response = this.client.newRequest("http://localhost:8080/jsonrpc").method(HttpMethod.POST)
 				.content(new org.eclipse.jetty.client.util.StringContentProvider(jsonRpcRequest), "application/json")
 				.send();
 		assertEquals(200, response.getStatus(), "Response status should be 200 OK.");
