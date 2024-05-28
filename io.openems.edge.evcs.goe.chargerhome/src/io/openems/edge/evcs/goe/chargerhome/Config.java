@@ -29,5 +29,8 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 	@AttributeDefinition(name = "Maximum current", description = "Maximum current of the Charger in mA.", required = true)
 	int maxHwCurrent() default 32000;
 
+	@AttributeDefinition(name = "Phase Switch", description = "Activates the Phase Switch Mode. Only for Version 'B' and API v2!")
+	boolean phaseSwitch() default false;
+
 	String webconsole_configurationFactory_nameHint() default "EVCS go-e Charger Home [{id}]";
 }
