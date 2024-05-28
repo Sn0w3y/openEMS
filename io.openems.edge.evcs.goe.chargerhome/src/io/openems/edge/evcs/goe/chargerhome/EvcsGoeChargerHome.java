@@ -29,6 +29,7 @@ public interface EvcsGoeChargerHome extends ManagedEvcs, Evcs, OpenemsComponent,
 		CURRENT_L3(Doc.of(OpenemsType.INTEGER).unit(Unit.MILLIAMPERE).text("Current on L3")),
 		ACTUAL_POWER(Doc.of(OpenemsType.INTEGER).unit(Unit.MILLIWATT).text("Total real power")),
 		ENERGY_TOTAL(Doc.of(OpenemsType.INTEGER).unit(Unit.CUMULATED_WATT_HOURS).text("Total power consumption")),
+		TEMPERATURE(Doc.of(OpenemsType.INTEGER).unit(Unit.DEGREE_CELSIUS).text("Temperature")),
 
 		CHARGINGSTATION_STATE_ERROR(Doc.of(Level.WARNING));
 
