@@ -113,6 +113,27 @@ public class GoeApi {
 	}
 
 	/**
+	 * Sets the Phases for go-e See https://github.com/goecharger.
+	 *
+	 * @param phases phases command
+	 * @return boolean indicating success
+	 */
+	public boolean setPhases(int phases) {
+		try {
+			var url = "http://" + this.ipAddress + "/mqtt?payload=psm=" + Integer.toString(phases);
+			var json = this.sendRequest(url, "PUT");
+			if (json != null) {
+				this.jsonStatus = json;
+				return true;
+			}
+			return false;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
+	}
+
+	/**
 	 * Limit MaxEnergy for go-e See https://github.com/goecharger.
 	 *
 	 * @param limit maximum energy limit enabled
