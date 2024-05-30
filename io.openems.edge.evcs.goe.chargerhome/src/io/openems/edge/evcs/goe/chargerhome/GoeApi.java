@@ -18,12 +18,27 @@ public class GoeApi {
 	private int cycle;
 	private JsonObject jsonStatus;
 	private final EvcsGoeChargerHomeImpl parent;
+	public boolean isNewApi;
 
 	public GoeApi(EvcsGoeChargerHomeImpl p) {
 		this.ipAddress = p.config.ip();
 		this.cycle = 0;
 		this.jsonStatus = null;
 		this.parent = p;
+		this.isNewApi = false;
+
+		// Determine API version
+		determineApiVersion();
+	}
+
+	private void determineApiVersion() {
+		try {
+			var url = "http://" + this.ipAddress + "/api/status";
+			this.sendRequest(url, "GET");
+			this.isNewApi = true;
+		} catch (Exception e) {
+			this.isNewApi = false;
+		}
 	}
 
 	/**
@@ -33,12 +48,12 @@ public class GoeApi {
 	 * @throws OpenemsNamedException on error
 	 */
 	public JsonObject getStatus() {
-
 		try {
 			// Execute every x-Cycle
 			if (this.cycle == 0 || this.cycle % this.executeEveryCycle == 0) {
 				var json = new JsonObject();
-				var url = "http://" + this.ipAddress + "/status";
+				var url = this.isNewApi ? "http://" + this.ipAddress + "/api/status"
+						: "http://" + this.ipAddress + "/status";
 				json = this.sendRequest(url, "GET");
 
 				this.cycle = 1;
@@ -64,22 +79,19 @@ public class GoeApi {
 	 * @return JsonObject with new settings
 	 */
 	public JsonObject setActive(boolean active) {
-
 		try {
 			if (active == this.parent.isActive) {
 				return this.jsonStatus;
 			}
 			var json = new JsonObject();
-			Integer status = 0;
-			if (active) {
-				status = 1;
-			}
-			var url = "http://" + this.ipAddress + "/mqtt?payload=alw=" + Integer.toString(status);
-			json = this.sendRequest(url, "PUT");
+			Integer status = active ? 1 : 0;
+			var url = this.isNewApi ? "http://" + this.ipAddress + "/api/set?alw=" + status
+					: "http://" + this.ipAddress + "/mqtt?payload=alw=" + status;
+			var method = this.isNewApi ? "GET" : "PUT";
+			json = this.sendRequest(url, method);
 			this.parent.isActive = active;
 			this.jsonStatus = json;
 			return json;
-
 		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
@@ -93,19 +105,19 @@ public class GoeApi {
 	 * @return JsonObject with new settings
 	 */
 	public JsonObject setCurrent(int current) {
-
 		try {
 			Integer currentAmpere = current / 1000;
 			if (currentAmpere != this.parent.activeCurrent / 1000) {
 				var json = new JsonObject();
-				var url = "http://" + this.ipAddress + "/mqtt?payload=amp=" + Integer.toString(currentAmpere);
-				json = this.sendRequest(url, "PUT");
+				var url = this.isNewApi ? "http://" + this.ipAddress + "/api/set?amp=" + currentAmpere
+						: "http://" + this.ipAddress + "/mqtt?payload=amp=" + currentAmpere;
+				var method = this.isNewApi ? "GET" : "PUT";
+				json = this.sendRequest(url, method);
 				this.parent.activeCurrent = currentAmpere * 1000;
 				this.jsonStatus = json;
 				return json;
 			}
 			return this.jsonStatus;
-
 		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
@@ -120,8 +132,8 @@ public class GoeApi {
 	 */
 	public boolean setPhases(int phases) {
 		try {
-			var url = "http://" + this.ipAddress + "/mqtt?payload=psm=" + Integer.toString(phases);
-			var json = this.sendRequest(url, "PUT");
+			var url = "http://" + this.ipAddress + "/api/set?psm=" + Integer.toString(phases);
+			var json = this.sendRequest(url, "GET");
 			if (json != null) {
 				this.jsonStatus = json;
 				return true;
@@ -140,15 +152,13 @@ public class GoeApi {
 	 * @return JsonObject with new settings
 	 */
 	public boolean limitMaxEnergy(boolean limit) {
-
 		try {
 			var json = new JsonObject();
-			var stp = 0;
-			if (limit) {
-				stp = 2;
-			}
-			var url = "http://" + this.ipAddress + "/mqtt?payload=stp=" + Integer.toString(stp);
-			json = this.sendRequest(url, "PUT");
+			var stp = limit ? 2 : 0;
+			var url = this.isNewApi ? "http://" + this.ipAddress + "/api/set?stp=" + stp
+					: "http://" + this.ipAddress + "/mqtt?payload=stp=" + stp;
+			var method = this.isNewApi ? "GET" : "PUT";
+			json = this.sendRequest(url, method);
 			if (json != null) {
 				this.jsonStatus = json;
 				return true;
@@ -167,7 +177,6 @@ public class GoeApi {
 	 * @return JsonObject with new settings
 	 */
 	public boolean setMaxEnergy(int maxEnergy) {
-
 		try {
 			var json = new JsonObject();
 			if (maxEnergy > 0) {
@@ -175,8 +184,10 @@ public class GoeApi {
 			} else {
 				this.limitMaxEnergy(false);
 			}
-			var url = "http://" + this.ipAddress + "/mqtt?payload=dwo=" + Integer.toString(maxEnergy);
-			json = this.sendRequest(url, "PUT");
+			var url = this.isNewApi ? "http://" + this.ipAddress + "/api/set?dwo=" + maxEnergy
+					: "http://" + this.ipAddress + "/mqtt?payload=dwo=" + maxEnergy;
+			var method = this.isNewApi ? "GET" : "PUT";
+			json = this.sendRequest(url, method);
 			if (json != null) {
 				this.jsonStatus = json;
 				return true;
@@ -190,7 +201,6 @@ public class GoeApi {
 
 	/**
 	 * Sends a get or set request to the go-e API.
-	 *
 	 *
 	 * @param urlString     used URL
 	 * @param requestMethod requested method
@@ -225,5 +235,4 @@ public class GoeApi {
 					"Unable to read from go-e API. " + e.getClass().getSimpleName() + ": " + e.getMessage());
 		}
 	}
-
 }

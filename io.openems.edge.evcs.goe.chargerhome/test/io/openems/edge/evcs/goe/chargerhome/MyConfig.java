@@ -81,4 +81,10 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 		return this.builder.maxHwCurrent;
 	}
 
+	@Override
+	public boolean phaseSwitch() {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
 }
