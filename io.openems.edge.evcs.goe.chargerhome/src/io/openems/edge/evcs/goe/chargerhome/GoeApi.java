@@ -84,8 +84,9 @@ public class GoeApi {
 				return this.jsonStatus;
 			}
 			var json = new JsonObject();
-			Integer status = active ? 1 : 0;
-			var url = this.isNewApi ? "http://" + this.ipAddress + "/api/set?alw=" + status
+
+			Integer status = this.isNewApi ? (active ? 2 : 1) : (active ? 1 : 0);
+			var url = this.isNewApi ? "http://" + this.ipAddress + "/api/set?frc=" + status
 					: "http://" + this.ipAddress + "/mqtt?payload=alw=" + status;
 			var method = this.isNewApi ? "GET" : "PUT";
 			json = this.sendRequest(url, method);
@@ -99,25 +100,32 @@ public class GoeApi {
 	}
 
 	/**
-	 * Sets the Current in Ampere for go-e See https://github.com/goecharger.
+	 * Sets the current in Amperes for go-e charger. See
+	 * https://github.com/goecharger.
 	 *
 	 * @param current current in mA
-	 * @return JsonObject with new settings
+	 * @return JsonObject with new settings or null if an error occurs
 	 */
 	public JsonObject setCurrent(int current) {
+		Integer currentAmpere = current / 1000; // Convert mA to A
 		try {
-			Integer currentAmpere = current / 1000;
-			if (currentAmpere != this.parent.activeCurrent / 1000) {
-				var json = new JsonObject();
-				var url = this.isNewApi ? "http://" + this.ipAddress + "/api/set?amp=" + currentAmpere
-						: "http://" + this.ipAddress + "/mqtt?payload=amp=" + currentAmpere;
-				var method = this.isNewApi ? "GET" : "PUT";
-				json = this.sendRequest(url, method);
-				this.parent.activeCurrent = currentAmpere * 1000;
-				this.jsonStatus = json;
-				return json;
+			// Check if the current needs to be updated and is within the allowable range
+			if (currentAmpere.equals(this.parent.activeCurrent / 1000) || currentAmpere < 6 || currentAmpere > 32) {
+				return this.jsonStatus; // Return the last known status if no update is needed or value is out of range
 			}
-			return this.jsonStatus;
+
+			// Construct URL based on API version
+			String url = this.isNewApi ? "http://" + this.ipAddress + "/api/set?frc=2&amp=" + currentAmpere // New API
+					: "http://" + this.ipAddress + "/mqtt?payload=amp=" + currentAmpere; // Old API endpoint
+			String method = this.isNewApi ? "GET" : "PUT"; // Method depends on API version
+
+			// Send the request and update the current status
+			JsonObject json = this.sendRequest(url, method);
+			if (json != null) {
+				this.parent.activeCurrent = currentAmpere * 1000; // Update current in mA
+				this.jsonStatus = json; // Store the latest status
+			}
+			return json;
 		} catch (Exception e) {
 			e.printStackTrace();
 			return null;
