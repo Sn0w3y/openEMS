@@ -107,83 +107,81 @@ public class EvcsGoeChargerHomeImpl extends AbstractManagedEvcsComponent
 		case EdgeEventConstants.TOPIC_CYCLE_BEFORE_PROCESS_IMAGE:
 
 			// handle writes
-			var json = this.goeapi.getStatus();
+			var json = this.goeapi.getStatus(); // Retrieve charger status from API.
 			if (json == null) {
-				this.channel(Evcs.ChannelId.CHARGINGSTATION_COMMUNICATION_FAILED).setNextValue(true);
-			} else {
-				try {
-					// Is Active
-					var alw = JsonUtils.getAsBoolean(json, "alw");
-					if (alw == true) {
-						this.isActive = true;
-					} else {
-						this.isActive = false;
-					}
-
-					// General information
-					this.channel(EvcsGoeChargerHome.ChannelId.SERIAL).setNextValue(JsonUtils.getAsString(json, "sse"));
-					this.channel(EvcsGoeChargerHome.ChannelId.FIRMWARE)
-							.setNextValue(JsonUtils.getAsString(json, "fwv"));
-					// Current status
-					var status = JsonUtils.getAsInt(json, "car");
-					this.channel(EvcsGoeChargerHome.ChannelId.STATUS_GOE).setNextValue(status);
-					this.channel(Evcs.ChannelId.STATUS).setNextValue(this.convertGoeStatus(status));
-
-					// Detailed charge information - Handle both amp and amx for compatibility
-					var amp = JsonUtils.getAsInt(json, "amp");
-					var amx = json.has("amx") ? JsonUtils.getAsInt(json, "amx") : amp;
-
-					this.activeCurrent = (amp != 0 ? amp : amx) * 1000;
-					this.channel(EvcsGoeChargerHome.ChannelId.CURR_USER).setNextValue(this.activeCurrent);
-					var nrg = JsonUtils.getAsJsonArray(json, "nrg");
-					this.channel(EvcsGoeChargerHome.ChannelId.VOLTAGE_L1).setNextValue(JsonUtils.getAsInt(nrg, 0));
-					this.channel(EvcsGoeChargerHome.ChannelId.VOLTAGE_L2).setNextValue(JsonUtils.getAsInt(nrg, 1));
-					this.channel(EvcsGoeChargerHome.ChannelId.VOLTAGE_L3).setNextValue(JsonUtils.getAsInt(nrg, 2));
-					this.channel(EvcsGoeChargerHome.ChannelId.CURRENT_L1)
-							.setNextValue(JsonUtils.getAsInt(nrg, 4) * 100);
-					this.channel(EvcsGoeChargerHome.ChannelId.CURRENT_L2)
-							.setNextValue(JsonUtils.getAsInt(nrg, 5) * 100);
-					this.channel(EvcsGoeChargerHome.ChannelId.CURRENT_L3)
-							.setNextValue(JsonUtils.getAsInt(nrg, 6) * 100);
-					var power = JsonUtils.getAsInt(nrg, 11);
-					this.channel(EvcsGoeChargerHome.ChannelId.ACTUAL_POWER).setNextValue(power * 10);
-					this.channel(Evcs.ChannelId.CHARGE_POWER).setNextValue(power * 10);
-
-					// Hardware limits
-					var cableCurrent = 0;
-					if (JsonUtils.getAsOptionalInt(json, "cbl").isEmpty()) {
-						cableCurrent = 0;
-					} else {
-						cableCurrent = JsonUtils.getAsInt(json, "cbl") * 1000;
-					}
-
-					this.maxCurrent = cableCurrent > 0 && cableCurrent < this.config.maxHwCurrent() //
-							? cableCurrent //
-							: this.config.maxHwCurrent();
-					this._setFixedMinimumHardwarePower(
-							Math.round(this.minCurrent / 1000f) * DEFAULT_VOLTAGE * Phases.THREE_PHASE.getValue());
-					this._setFixedMaximumHardwarePower(
-							Math.round(this.maxCurrent / 1000f) * DEFAULT_VOLTAGE * Phases.THREE_PHASE.getValue());
-					// Phases
-					int phases = this.convertGoePhase(JsonUtils.getAsOptionalJsonArray(json, "pha"));
-					this._setPhases(phases);
-					// Energy
-					this.channel(EvcsGoeChargerHome.ChannelId.ENERGY_TOTAL)
-							.setNextValue(JsonUtils.getAsInt(json, "eto") * 100);
-					this.channel(Evcs.ChannelId.ENERGY_SESSION)
-							.setNextValue(JsonUtils.getAsInt(json, "wh") * 10 / 3600);
-
-					// Error
-					this.channel(EvcsGoeChargerHome.ChannelId.ERROR).setNextValue(JsonUtils.getAsInt(json, "err"));
-					this.channel(Evcs.ChannelId.CHARGINGSTATION_COMMUNICATION_FAILED).setNextValue(false);
-
-				} catch (OpenemsNamedException e) {
-					this.channel(Evcs.ChannelId.CHARGINGSTATION_COMMUNICATION_FAILED).setNextValue(true);
-				}
+				this.channel(Evcs.ChannelId.CHARGINGSTATION_COMMUNICATION_FAILED).setNextValue(true); // Log
+																										// communication
+																										// failure.
+				return;
 			}
-			break;
-		default:
-			break;
+
+			try {
+				// Determine active status of the charger.
+				this.isActive = JsonUtils.getAsBoolean(json, "alw");
+
+				// Retrieve and update general information.
+				this.channel(EvcsGoeChargerHome.ChannelId.SERIAL).setNextValue(JsonUtils.getAsString(json, "sse"));
+				this.channel(EvcsGoeChargerHome.ChannelId.FIRMWARE).setNextValue(JsonUtils.getAsString(json, "fwv"));
+
+				// Update current charger status.
+				int status = JsonUtils.getAsInt(json, "car");
+				this.channel(EvcsGoeChargerHome.ChannelId.STATUS_GOE).setNextValue(status);
+				this.channel(Evcs.ChannelId.STATUS).setNextValue(this.convertGoeStatus(status));
+
+				// Handle detailed charge information for compatibility.
+				int amp = JsonUtils.getAsInt(json, "amp");
+				int amx = json.has("amx") ? JsonUtils.getAsInt(json, "amx") : amp;
+				this.activeCurrent = (amp != 0 ? amp : amx) * 1000;
+				this.channel(EvcsGoeChargerHome.ChannelId.CURR_USER).setNextValue(this.activeCurrent);
+
+				// Adjust currents and power based on API version.
+				var nrg = JsonUtils.getAsJsonArray(json, "nrg");
+				int factor = this.goeapi.isNewApi ? 1000 : 100; // Adjust factor for current and power based on API
+																// version.
+				this.channel(EvcsGoeChargerHome.ChannelId.CURRENT_L1).setNextValue(JsonUtils.getAsInt(nrg, 4) * factor);
+				this.channel(EvcsGoeChargerHome.ChannelId.CURRENT_L2).setNextValue(JsonUtils.getAsInt(nrg, 5) * factor);
+				this.channel(EvcsGoeChargerHome.ChannelId.CURRENT_L3).setNextValue(JsonUtils.getAsInt(nrg, 6) * factor);
+
+				int power = JsonUtils.getAsInt(nrg, 11);
+				if (!this.goeapi.isNewApi) { // Apply old API factor if applicable.
+					power *= 10;
+				}
+				this.channel(EvcsGoeChargerHome.ChannelId.ACTUAL_POWER).setNextValue(power);
+				this.channel(Evcs.ChannelId.CHARGE_POWER).setNextValue(power);
+
+				// Set hardware limits based on cable current.
+				int cableCurrent = JsonUtils.getAsOptionalInt(json, "cbl").orElse(0) * 1000;
+				this.maxCurrent = Math.min(cableCurrent, this.config.maxHwCurrent());
+				this._setFixedMinimumHardwarePower(
+						Math.round(this.minCurrent / 1000f) * DEFAULT_VOLTAGE * Phases.THREE_PHASE.getValue());
+				this._setFixedMaximumHardwarePower(
+						Math.round(this.maxCurrent / 1000f) * DEFAULT_VOLTAGE * Phases.THREE_PHASE.getValue());
+
+				// Set the number of phases used based on the API.
+				int phases = this.goeapi.isNewApi
+						? convertGoePhase(Optional.ofNullable(JsonUtils.getAsJsonArray(json, "pha")))
+						: convertGoePhase(JsonUtils.getAsInt(json, "binaryPhaseKey"));
+				this._setPhases(phases);
+
+				// Update total and session energy.
+				int totalEnergy = JsonUtils.getAsInt(json, "eto");
+				if (!this.goeapi.isNewApi) { // Apply old API factor if applicable.
+					totalEnergy *= 10;
+				}
+				this.channel(EvcsGoeChargerHome.ChannelId.ENERGY_TOTAL).setNextValue(totalEnergy);
+
+				var energySession = json.has("dws") ? JsonUtils.getAsInt(json, "dws") * 10 / 3600
+						: JsonUtils.getAsInt(json, "wh");
+				this.channel(Evcs.ChannelId.ENERGY_SESSION).setNextValue(energySession);
+
+				// Clear error status.
+				this.channel(EvcsGoeChargerHome.ChannelId.ERROR).setNextValue(JsonUtils.getAsInt(json, "err"));
+				this.channel(Evcs.ChannelId.CHARGINGSTATION_COMMUNICATION_FAILED).setNextValue(false);
+
+			} catch (OpenemsNamedException e) {
+				// Handle exception by logging failure.
+				this.channel(Evcs.ChannelId.CHARGINGSTATION_COMMUNICATION_FAILED).setNextValue(true);
+			}
 		}
 	}
 
@@ -203,43 +201,46 @@ public class EvcsGoeChargerHomeImpl extends AbstractManagedEvcsComponent
 	}
 
 	/**
-	 * Converts the binary input into the amount of phases that are used to charge.
-	 *
-	 * @param phase binary phase input
-	 * @return amount of phases
+	 * Converts binary phase input into the number of active phases.
+	 * 
+	 * @param phase the binary phase input as an integer
+	 * @return the number of active phases
+	 */
+	private int convertGoePhase(int phase) {
+		int phasen = phase & 0b00111000; // Mask to focus on relevant bits
+		switch (phasen) {
+		case 0b00001000: // Phase 1 is active
+			return 1;
+		case 0b00011000: // Phase 1 and 2 are active
+			return 2;
+		case 0b00111000: // Phase 1, 2, and 3 are active
+			return 3;
+		default:
+			return 0; // No active phases detected
+		}
+	}
+
+	/**
+	 * Converts a JSON array indicating phase activity into the number of active
+	 * phases.
+	 * 
+	 * @param phase JSON array where each boolean entry indicates if a phase is
+	 *              active
+	 * @return the number of active phases
 	 */
 	private int convertGoePhase(Optional<JsonArray> phase) {
-		if (phase.isEmpty()) {
-			return 0;
+		if (!phase.isPresent()) {
+			return 0; // Return 0 if the JSON array is not present
 		}
 
 		JsonArray phaseArray = phase.get();
 		int activePhases = 0;
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 3; i++) { // Assume the array has three elements
 			if (phaseArray.get(i).getAsBoolean()) {
-				activePhases++;
+				activePhases++; // Count each active phase
 			}
 		}
 		return activePhases;
-	}
-
-	/**
-	 * Debug Log.
-	 * 
-	 * <p>
-	 * Logging only if the debug mode is enabled
-	 * 
-	 * @param message text that should be logged
-	 */
-	public void debugLog(String message) {
-		if (this.config.debugMode()) {
-			this.logInfo(this.log, message);
-		}
-	}
-
-	@Override
-	public boolean getConfiguredDebugMode() {
-		return this.config.debugMode();
 	}
 
 	@Override
@@ -247,33 +248,26 @@ public class EvcsGoeChargerHomeImpl extends AbstractManagedEvcsComponent
 		Instant now = Instant.now(this.componentManager.getClock());
 		this.log.debug("Applying charge power limit: [Power: " + power + "W] at [" + now + "]");
 
+		int maxPowerCurrentSetting = getConfiguredMaximumHardwarePower(); // Get the max power with full phase capacity
 		var phasesValue = this.getPhasesAsInt();
 		this.log.debug("Current charging phase configuration: " + phasesValue + " phases");
 
-		var current = this.calculateCurrent(power, phasesValue);
-		this.log.debug("Calculated current for charging: " + current + "mA");
-
-		// Determine if switching phases is necessary
-		final var phases = this.getPhases();
-		var preferredPhases = Phases.preferredPhaseBehavior(power, this.getPhases(), this.config.minHwCurrent(),
-				this.config.maxHwCurrent());
-
-		this.log.debug("Preferred: " + preferredPhases);
-
-		boolean phaseSwitchingActive = this.config.phaseSwitch() && this.goeapi.isNewApi;
-
-		if (phaseSwitchingActive && phases != preferredPhases) {
-			boolean switchSuccess = this.switchPhases(preferredPhases, now);
+		if (power > maxPowerCurrentSetting && this.config.phaseSwitch()) {
+			// Try to switch to a higher phase setting if not already at maximum capacity
+			var preferredPhases = Phases.THREE_PHASE; // Assuming three phases is the max configuration
+			boolean switchSuccess = switchPhases(preferredPhases, now);
 			if (!switchSuccess) {
-				this.log.info("Phase switch failed. Exiting.");
-				return false; // Early exit if phase switch failed
+				this.log.warn("Failed to switch phases to accommodate power demand.");
+				return false; // If phase switch failed, return early.
 			}
 		}
-		// Send command to set current
-		boolean sendSuccess = this.sendChargePowerLimit(current);
-		this.log.debug("Command to set current sent. Success: " + sendSuccess);
 
-		return sendSuccess;
+		var current = calculateCurrent(power, this.getPhasesAsInt()); // Recalculate current with possibly new phase
+																		// setting
+		this.log.debug("Calculated current for charging: " + current + "mA");
+
+		// Send command to set current
+		return sendChargePowerLimit(current);
 	}
 
 	private int calculateCurrent(int power, int phases) {
@@ -287,9 +281,9 @@ public class EvcsGoeChargerHomeImpl extends AbstractManagedEvcsComponent
 		return current * 1000; // Convert to mA
 	}
 
-	private boolean switchPhases(Phases preferredPhases, Instant now) {
+	private boolean switchPhases(Phases prefferedPhases, Instant now) {
 		int command;
-		switch (preferredPhases) {
+		switch (prefferedPhases) {
 		case ONE_PHASE:
 			command = 1;
 			break;
@@ -303,18 +297,18 @@ public class EvcsGoeChargerHomeImpl extends AbstractManagedEvcsComponent
 
 		if (this.goeapi.setPhases(command)) {
 			this.log.info(
-					"Switched to " + (preferredPhases == Phases.ONE_PHASE ? "1 phase" : "3 phases") + " successfully.");
+					"Switched to " + (prefferedPhases == Phases.ONE_PHASE ? "1 phase" : "3 phases") + " successfully.");
 			return true;
 		} else {
 			this.log.warn(
-					"Failed to switch to " + (preferredPhases == Phases.ONE_PHASE ? "1 phase" : "3 phases") + ".");
+					"Failed to switch to " + (prefferedPhases == Phases.ONE_PHASE ? "1 phase" : "3 phases") + ".");
 			return false;
 		}
 	}
 
 	private boolean sendChargePowerLimit(int power) {
 		var phases = this.getPhasesAsInt();
-		var current = power * 1000 / phases / 230; // voltage
+		var current = power * 1000 / phases /* e.g. 3 phases */ / 230; /* voltage */
 
 		var result = this.goeapi.setCurrent(current);
 		if (result.isJsonObject()) {
@@ -349,6 +343,25 @@ public class EvcsGoeChargerHomeImpl extends AbstractManagedEvcsComponent
 	@Override
 	public int getConfiguredMaximumHardwarePower() {
 		return Math.round(this.config.maxHwCurrent() / 1000f) * DEFAULT_VOLTAGE * Phases.THREE_PHASE.getValue();
+	}
+
+	/**
+	 * Debug Log.
+	 * 
+	 * <p>
+	 * Logging only if the debug mode is enabled
+	 * 
+	 * @param message text that should be logged
+	 */
+	public void debugLog(String message) {
+		if (this.config.debugMode()) {
+			this.logInfo(this.log, message);
+		}
+	}
+
+	@Override
+	public boolean getConfiguredDebugMode() {
+		return this.config.debugMode();
 	}
 
 	@Override
